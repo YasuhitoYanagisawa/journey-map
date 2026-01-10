@@ -43,22 +43,22 @@ export function buildAdminBoundaryStats(
 
   for (const photo of photos) {
     let areaName: string | null = null;
+    let displayName: string | null = null;
 
     if (level === 'prefecture') {
       areaName = photo.prefecture || null;
+      displayName = areaName;
     } else if (level === 'city') {
-      // Combine prefecture + city for uniqueness
-      if (photo.prefecture && photo.city) {
-        areaName = `${photo.prefecture} ${photo.city}`;
-      } else if (photo.city) {
+      // Use city name as the main identifier
+      if (photo.city) {
         areaName = photo.city;
+        displayName = photo.city;
       }
     } else if (level === 'town') {
-      // Combine city + town for uniqueness
-      if (photo.city && photo.town) {
-        areaName = `${photo.city} ${photo.town}`;
-      } else if (photo.town) {
+      // Use town name as the main identifier
+      if (photo.town) {
         areaName = photo.town;
+        displayName = photo.town;
       }
     }
 
