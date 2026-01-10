@@ -170,22 +170,26 @@ export const usePhotos = () => {
     setPhotos(prev => [...prev, ...newPhotos]);
   }, []);
 
-  // Update address info for photos that don't have it
+  // Update address info for all photos (re-fetch from Mapbox)
   const updateAddressInfo = useCallback(async (onProgress?: (current: number, total: number) => void): Promise<number> => {
     if (!user) return 0;
 
-    // Find photos without address info
-    const photosNeedingUpdate = photos.filter(p => !p.prefecture && !p.city && !p.town);
-    if (photosNeedingUpdate.length === 0) {
-      toast.message('すべての写真に住所情報があります');
+    // Update ALL photos to re-fetch address info
+    const photosToUpdate = photos;
+    if (photosToUpdate.length === 0) {
+      toast.message('更新する写真がありません');
       return 0;
     }
 
     let updated = 0;
-    const total = photosNeedingUpdate.length;
+    const total = photosToUpdate.length;
 
-    for (let i = 0; i < photosNeedingUpdate.length; i++) {
-      const photo = photosNeedingUpdate[i];
+    toast.message('住所情報を取得中...', {
+      description: `${total}枚の写真を処理します`,
+    });
+
+    for (let i = 0; i < photosToUpdate.length; i++) {
+      const photo = photosToUpdate[i];
       onProgress?.(i + 1, total);
 
       try {
@@ -213,7 +217,7 @@ export const usePhotos = () => {
         }
 
         // Rate limit: avoid hitting Mapbox limits
-        if (i < photosNeedingUpdate.length - 1) {
+        if (i < photosToUpdate.length - 1) {
           await new Promise(resolve => setTimeout(resolve, 150));
         }
       } catch (error) {
@@ -222,7 +226,7 @@ export const usePhotos = () => {
     }
 
     if (updated > 0) {
-      toast.success(`${updated}枚の写真に住所情報を追加しました`);
+      toast.success(`${updated}枚の写真の住所情報を更新しました`);
     } else {
       toast.error('住所情報の取得に失敗しました', {
         description: 'Mapbox APIキーを確認してください',
