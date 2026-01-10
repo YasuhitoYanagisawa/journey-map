@@ -1,7 +1,7 @@
 import exifr from 'exifr';
 import { PhotoLocation } from '@/types/photo';
 
-type ParseMultiplePhotosOptions = {
+export type ParseMultiplePhotosOptions = {
   /** Number of photos to parse in parallel. Lower = smoother UI, higher = faster. */
   concurrency?: number;
   /** Yield to the main thread every N processed photos to keep the UI responsive. */
@@ -16,45 +16,48 @@ function yieldToMainThread(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
+function makeId(file: File): string {
+  try {
+    if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+      return (crypto as Crypto).randomUUID();
+    }
+  } catch {
+    // ignore
+  }
+  return `${file.name}-${Date.now()}`;
+}
+
 export async function parsePhotoEXIF(file: File): Promise<PhotoLocation | null> {
   try {
-    // Use exifr for reliable EXIF parsing (supports GPS, dates, etc.)
-    const exifData = await exifr.parse(file, {
-      gps: true,
-      pick: ['DateTimeOriginal', 'CreateDate', 'ModifyDate', 'latitude', 'longitude'],
-    });
-
-    if (!exifData) return null;
-
-    // exifr returns latitude/longitude directly as numbers
-    const latitude = exifData.latitude;
-    const longitude = exifData.longitude;
-
-    if (typeof latitude !== 'number' || typeof longitude !== 'number') {
+    // GPS: use the dedicated fast path (recommended by exifr docs)
+    const gps = await exifr.gps(file).catch(() => null);
+    if (!gps || typeof gps.latitude !== 'number' || typeof gps.longitude !== 'number') {
       return null;
     }
 
-    // Get timestamp from EXIF
-    const timestamp =
-      exifData.DateTimeOriginal ||
-      exifData.CreateDate ||
-      exifData.ModifyDate ||
-      new Date();
+    // Timestamp: read only a few common date tags
+    const meta = await exifr
+      .parse(file, ['DateTimeOriginal', 'CreateDate', 'ModifyDate'])
+      .catch(() => null);
 
-    // Use object URL as thumbnail (cheap, avoids base64)
+    const rawTimestamp =
+      meta?.DateTimeOriginal ?? meta?.CreateDate ?? meta?.ModifyDate ?? null;
+
+    const timestamp =
+      rawTimestamp instanceof Date
+        ? rawTimestamp
+        : rawTimestamp
+          ? new Date(rawTimestamp)
+          : new Date(file.lastModified);
+
     const thumbnailUrl = URL.createObjectURL(file);
 
-    const id =
-      typeof crypto !== 'undefined' && 'randomUUID' in crypto
-        ? crypto.randomUUID()
-        : `${file.name}-${Date.now()}`;
-
     return {
-      id,
+      id: makeId(file),
       filename: file.name,
-      latitude,
-      longitude,
-      timestamp: timestamp instanceof Date ? timestamp : new Date(timestamp),
+      latitude: gps.latitude,
+      longitude: gps.longitude,
+      timestamp,
       thumbnailUrl,
       originalFile: file,
     };
