@@ -15,7 +15,9 @@ const MAPBOX_TOKEN_KEY = 'phototrail_mapbox_token';
  * Get the Mapbox token from localStorage
  */
 function getMapboxToken(): string | null {
-  return localStorage.getItem(MAPBOX_TOKEN_KEY);
+  const token = localStorage.getItem(MAPBOX_TOKEN_KEY);
+  console.log('Mapbox token check:', token ? `Found (length: ${token.length})` : 'Not found');
+  return token;
 }
 
 /**
