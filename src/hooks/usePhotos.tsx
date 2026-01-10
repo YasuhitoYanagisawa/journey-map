@@ -172,9 +172,7 @@ export const usePhotos = () => {
 
   // Update address info for all photos (re-fetch from Mapbox)
   const updateAddressInfo = useCallback(async (onProgress?: (current: number, total: number) => void): Promise<number> => {
-    if (!user) return 0;
-
-    // Update ALL photos to re-fetch address info
+    // Works for both logged-in and non-logged-in users
     const photosToUpdate = photos;
     if (photosToUpdate.length === 0) {
       toast.message('更新する写真がありません');
@@ -196,24 +194,29 @@ export const usePhotos = () => {
         const geocodeResult = await reverseGeocode(photo.latitude, photo.longitude);
         
         if (geocodeResult.prefecture || geocodeResult.city || geocodeResult.town) {
-          const { error } = await supabase
-            .from('photos')
-            .update({
-              prefecture: geocodeResult.prefecture,
-              city: geocodeResult.city,
-              town: geocodeResult.town,
-            })
-            .eq('id', photo.id);
+          // If logged in, also update in Supabase
+          if (user) {
+            const { error } = await supabase
+              .from('photos')
+              .update({
+                prefecture: geocodeResult.prefecture,
+                city: geocodeResult.city,
+                town: geocodeResult.town,
+              })
+              .eq('id', photo.id);
 
-          if (!error) {
-            updated++;
-            // Update local state
-            setPhotos(prev => prev.map(p => 
-              p.id === photo.id 
-                ? { ...p, prefecture: geocodeResult.prefecture, city: geocodeResult.city, town: geocodeResult.town }
-                : p
-            ));
+            if (error) {
+              console.error('DB update error:', error);
+            }
           }
+
+          updated++;
+          // Update local state (works for both logged-in and non-logged-in)
+          setPhotos(prev => prev.map(p => 
+            p.id === photo.id 
+              ? { ...p, prefecture: geocodeResult.prefecture, city: geocodeResult.city, town: geocodeResult.town }
+              : p
+          ));
         }
 
         // Rate limit: avoid hitting Mapbox limits
