@@ -21,7 +21,7 @@ import { usePhotos } from '@/hooks/usePhotos';
 const Index = () => {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
-  const { photos, isLoading, isFetching, uploadPhotos, addLocalPhotos } = usePhotos();
+  const { photos, isLoading, isFetching, uploadPhotos, addLocalPhotos, updateAddressInfo } = usePhotos();
   const [viewMode, setViewMode] = useState<ViewMode>('markers');
   const [gridStats, setGridStats] = useState<GridStats | null>(null);
   const [highlightedCellId, setHighlightedCellId] = useState<string | null>(null);
@@ -52,6 +52,11 @@ const Index = () => {
     if (displayPhotos.length === 0) return null;
     return buildAdminBoundaryStats(displayPhotos, adminLevel);
   }, [displayPhotos, adminLevel]);
+
+  // Check if any photos are missing address info
+  const hasPhotosWithoutAddress = useMemo(() => {
+    return photos.some(p => !p.prefecture && !p.city && !p.town);
+  }, [photos]);
 
   const handlePhotosLoaded = async (files: File[]) => {
     if (user) {
@@ -250,6 +255,8 @@ const Index = () => {
                     adminLevel={adminLevel}
                     onLevelChange={setAdminLevel}
                     onAreaClick={setHighlightedAreaId}
+                    onUpdateAddressInfo={updateAddressInfo}
+                    hasPhotosWithoutAddress={hasPhotosWithoutAddress}
                   />
                 )}
                 {viewMode !== 'grid' && viewMode !== 'admin' && <PhotoTimeline photos={displayPhotos} />}
