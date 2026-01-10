@@ -1,59 +1,5 @@
-import EXIF from 'exif-js';
+import exifr from 'exifr';
 import { PhotoLocation } from '@/types/photo';
-
-function convertDMSToDD(degrees: number, minutes: number, seconds: number, direction: string): number {
-  let dd = degrees + minutes / 60 + seconds / 3600;
-  if (direction === 'S' || direction === 'W') {
-    dd = dd * -1;
-  }
-  return dd;
-}
-
-function getGPSCoordinates(exifData: any): { latitude: number; longitude: number } | null {
-  const latData = exifData.GPSLatitude;
-  const lonData = exifData.GPSLongitude;
-  const latRef = exifData.GPSLatitudeRef;
-  const lonRef = exifData.GPSLongitudeRef;
-
-  if (!latData || !lonData || !latRef || !lonRef) {
-    return null;
-  }
-
-  const latitude = convertDMSToDD(
-    latData[0],
-    latData[1],
-    latData[2],
-    latRef
-  );
-
-  const longitude = convertDMSToDD(
-    lonData[0],
-    lonData[1],
-    lonData[2],
-    lonRef
-  );
-
-  return { latitude, longitude };
-}
-
-function getTimestamp(exifData: any): Date {
-  const dateTimeOriginal = exifData.DateTimeOriginal;
-  if (dateTimeOriginal) {
-    // EXIF date format: "YYYY:MM:DD HH:MM:SS"
-    const parts = dateTimeOriginal.split(' ');
-    const dateParts = parts[0].split(':');
-    const timeParts = parts[1]?.split(':') || ['00', '00', '00'];
-    return new Date(
-      parseInt(dateParts[0]),
-      parseInt(dateParts[1]) - 1,
-      parseInt(dateParts[2]),
-      parseInt(timeParts[0]),
-      parseInt(timeParts[1]),
-      parseInt(timeParts[2])
-    );
-  }
-  return new Date();
-}
 
 type ParseMultiplePhotosOptions = {
   /** Number of photos to parse in parallel. Lower = smoother UI, higher = faster. */
@@ -66,44 +12,49 @@ type ParseMultiplePhotosOptions = {
   signal?: AbortSignal;
 };
 
-function readFileAsArrayBuffer(file: File): Promise<ArrayBuffer> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(reader.error);
-    reader.onload = () => resolve(reader.result as ArrayBuffer);
-    reader.readAsArrayBuffer(file);
-  });
-}
-
 function yieldToMainThread(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
 export async function parsePhotoEXIF(file: File): Promise<PhotoLocation | null> {
   try {
-    const buffer = await readFileAsArrayBuffer(file);
+    // Use exifr for reliable EXIF parsing (supports GPS, dates, etc.)
+    const exifData = await exifr.parse(file, {
+      gps: true,
+      pick: ['DateTimeOriginal', 'CreateDate', 'ModifyDate', 'latitude', 'longitude'],
+    });
 
-    // Fast path: parse EXIF directly from JPEG binary (no Image decode / no base64 DataURL)
-    const exifData = EXIF.readFromBinaryFile(buffer);
     if (!exifData) return null;
 
-    const coords = getGPSCoordinates(exifData);
-    if (!coords) return null;
+    // exifr returns latitude/longitude directly as numbers
+    const latitude = exifData.latitude;
+    const longitude = exifData.longitude;
 
-    const timestamp = getTimestamp(exifData);
+    if (typeof latitude !== 'number' || typeof longitude !== 'number') {
+      return null;
+    }
+
+    // Get timestamp from EXIF
+    const timestamp =
+      exifData.DateTimeOriginal ||
+      exifData.CreateDate ||
+      exifData.ModifyDate ||
+      new Date();
+
     // Use object URL as thumbnail (cheap, avoids base64)
     const thumbnailUrl = URL.createObjectURL(file);
 
-    const id = typeof crypto !== 'undefined' && 'randomUUID' in crypto
-      ? crypto.randomUUID()
-      : `${file.name}-${Date.now()}`;
+    const id =
+      typeof crypto !== 'undefined' && 'randomUUID' in crypto
+        ? crypto.randomUUID()
+        : `${file.name}-${Date.now()}`;
 
     return {
       id,
       filename: file.name,
-      latitude: coords.latitude,
-      longitude: coords.longitude,
-      timestamp,
+      latitude,
+      longitude,
+      timestamp: timestamp instanceof Date ? timestamp : new Date(timestamp),
       thumbnailUrl,
       originalFile: file,
     };
@@ -120,7 +71,7 @@ export async function parseMultiplePhotos(
   const total = files.length;
   if (total === 0) return [];
 
-  const concurrency = Math.max(1, Math.min(options.concurrency ?? 2, 8));
+  const concurrency = Math.max(1, Math.min(options.concurrency ?? 4, 8));
   const yieldEvery = Math.max(1, options.yieldEvery ?? 5);
 
   let processed = 0;
@@ -150,4 +101,3 @@ export async function parseMultiplePhotos(
 
   return results.filter((r): r is PhotoLocation => r != null);
 }
-
