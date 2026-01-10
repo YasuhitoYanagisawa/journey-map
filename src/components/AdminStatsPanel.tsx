@@ -68,8 +68,8 @@ const AdminStatsPanel = ({ stats, adminLevel, onLevelChange, onAreaClick, onUpda
         {stats.totalAreas}エリア・最大{stats.maxCount}枚
       </div>
 
-      {/* Update address button */}
-      {hasPhotosWithoutAddress && (
+      {/* Update address button - always show for re-fetching */}
+      {onUpdateAddressInfo && (
         <Button
           variant="outline"
           size="sm"
