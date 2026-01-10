@@ -8,7 +8,7 @@ import { motion } from 'framer-motion';
 import { Key } from 'lucide-react';
 import { buildPhotoGrid, getGridCellColor, GridStats } from '@/utils/gridCalculator';
 import { AdminBoundaryStats } from '@/utils/adminBoundaryCalculator';
-import { loadPrefectureGeoJSON, createPrefectureFeatures, getAdminAreaColor } from '@/utils/japanGeoData';
+import { loadPrefectureGeoJSON, loadCityGeoJSON, createPrefectureFeatures, createCityFeatures, getAdminAreaColor } from '@/utils/japanGeoData';
 
 interface PhotoMapProps {
   photos: PhotoLocation[];
@@ -534,7 +534,7 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId, filt
         },
       });
     } else if (viewMode === 'admin' && adminStats && adminStats.cells.length > 0) {
-      // Load GeoJSON and render polygons for prefecture level
+      // Load GeoJSON and render polygons for prefecture/city levels
       const renderAdminPolygons = async () => {
         if (!map.current) return;
 
@@ -543,23 +543,19 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId, filt
           const geoData = await loadPrefectureGeoJSON();
           
           if (geoData && map.current) {
-            // Create a map of prefecture counts
             const prefectureCounts = new Map<string, { count: number; intensity: number }>();
             adminStats.cells.forEach(cell => {
               prefectureCounts.set(cell.name, { count: cell.count, intensity: cell.intensity });
             });
 
-            // Create features for prefectures with photos
             const prefectureFeatures = createPrefectureFeatures(geoData, prefectureCounts);
 
             if (prefectureFeatures.features.length > 0) {
-              // Add polygon source
               map.current.addSource('admin-polygons', {
                 type: 'geojson',
                 data: prefectureFeatures,
               });
 
-              // Fill layer
               map.current.addLayer({
                 id: 'admin-polygon-fill',
                 type: 'fill',
@@ -579,7 +575,6 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId, filt
                 },
               });
 
-              // Outline layer
               map.current.addLayer({
                 id: 'admin-polygon-outline',
                 type: 'line',
@@ -591,7 +586,6 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId, filt
                 },
               });
 
-              // Labels layer
               map.current.addLayer({
                 id: 'admin-polygon-labels',
                 type: 'symbol',
@@ -608,11 +602,9 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId, filt
                 },
               });
 
-              // Click handler
               map.current.on('click', 'admin-polygon-fill', (e) => {
                 if (!e.features || e.features.length === 0) return;
-                const feature = e.features[0];
-                const props = feature.properties;
+                const props = e.features[0].properties;
                 if (!props) return;
 
                 const area = adminStats.cells.find(c => 
@@ -629,7 +621,6 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId, filt
                 }
               });
 
-              // Cursor change
               map.current.on('mouseenter', 'admin-polygon-fill', () => {
                 if (map.current) map.current.getCanvas().style.cursor = 'pointer';
               });
@@ -637,12 +628,118 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId, filt
                 if (map.current) map.current.getCanvas().style.cursor = '';
               });
 
-              return; // Successfully rendered polygons
+              return;
             }
           }
         }
 
-        // Fallback: Use circle markers for city/town levels or when GeoJSON fails
+        // For city level, load city GeoJSON for relevant prefectures
+        if (adminStats.level === 'city') {
+          // Get unique prefectures from photos that have city data
+          const prefecturesWithPhotos = new Set<string>();
+          displayPhotos.forEach(photo => {
+            if ((photo as any).prefecture) {
+              prefecturesWithPhotos.add((photo as any).prefecture);
+            }
+          });
+
+          if (prefecturesWithPhotos.size > 0) {
+            const geoData = await loadCityGeoJSON(Array.from(prefecturesWithPhotos));
+            
+            if (geoData && map.current) {
+              const cityCounts = new Map<string, { count: number; intensity: number }>();
+              adminStats.cells.forEach(cell => {
+                cityCounts.set(cell.name, { count: cell.count, intensity: cell.intensity });
+              });
+
+              const cityFeatures = createCityFeatures(geoData, cityCounts);
+
+              if (cityFeatures.features.length > 0) {
+                map.current.addSource('admin-polygons', {
+                  type: 'geojson',
+                  data: cityFeatures,
+                });
+
+                map.current.addLayer({
+                  id: 'admin-polygon-fill',
+                  type: 'fill',
+                  source: 'admin-polygons',
+                  paint: {
+                    'fill-color': [
+                      'interpolate',
+                      ['linear'],
+                      ['get', 'intensity'],
+                      0, 'hsl(210, 70%, 50%)',
+                      0.3, 'hsl(180, 70%, 50%)',
+                      0.5, 'hsl(60, 80%, 50%)',
+                      0.7, 'hsl(36, 90%, 50%)',
+                      1, 'hsl(0, 80%, 50%)',
+                    ],
+                    'fill-opacity': 0.6,
+                  },
+                });
+
+                map.current.addLayer({
+                  id: 'admin-polygon-outline',
+                  type: 'line',
+                  source: 'admin-polygons',
+                  paint: {
+                    'line-color': '#fff',
+                    'line-width': 2,
+                    'line-opacity': 0.8,
+                  },
+                });
+
+                map.current.addLayer({
+                  id: 'admin-polygon-labels',
+                  type: 'symbol',
+                  source: 'admin-polygons',
+                  layout: {
+                    'text-field': ['concat', ['get', 'name'], '\n', ['get', 'count'], '枚'],
+                    'text-size': 13,
+                    'text-font': ['DIN Pro Bold', 'Arial Unicode MS Bold'],
+                  },
+                  paint: {
+                    'text-color': '#fff',
+                    'text-halo-color': 'rgba(0,0,0,0.8)',
+                    'text-halo-width': 2,
+                  },
+                });
+
+                map.current.on('click', 'admin-polygon-fill', (e) => {
+                  if (!e.features || e.features.length === 0) return;
+                  const props = e.features[0].properties;
+                  if (!props) return;
+
+                  const area = adminStats.cells.find(c => 
+                    c.name === props.name || 
+                    c.name === props.matchedName ||
+                    c.name.includes(props.name) || 
+                    props.name.includes(c.name)
+                  );
+                  if (area) {
+                    map.current!.flyTo({
+                      center: [area.centerLng, area.centerLat],
+                      zoom: 11,
+                      duration: 800,
+                    });
+                  }
+                });
+
+                map.current.on('mouseenter', 'admin-polygon-fill', () => {
+                  if (map.current) map.current.getCanvas().style.cursor = 'pointer';
+                });
+                map.current.on('mouseleave', 'admin-polygon-fill', () => {
+                  if (map.current) map.current.getCanvas().style.cursor = '';
+                });
+
+                return;
+              }
+            }
+          }
+        }
+
+        // Fallback: Use circle markers for town level or when GeoJSON fails
         const geojsonData = {
           type: 'FeatureCollection' as const,
           features: adminStats.cells.map((cell, index) => ({
@@ -666,7 +763,6 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId, filt
           data: geojsonData,
         });
 
-        // Circle markers for admin areas
         map.current.addLayer({
           id: 'admin-points',
           type: 'circle',
@@ -696,7 +792,6 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId, filt
           },
         });
 
-        // Labels for admin areas
         map.current.addLayer({
           id: 'admin-labels',
           type: 'symbol',
@@ -715,11 +810,9 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId, filt
           },
         });
 
-        // Click handler for admin areas
         map.current.on('click', 'admin-points', (e) => {
           if (!e.features || e.features.length === 0) return;
-          const feature = e.features[0];
-          const props = feature.properties;
+          const props = e.features[0].properties;
           if (!props) return;
 
           const area = adminStats.cells.find(c => c.id === props.id);
@@ -732,7 +825,6 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId, filt
           }
         });
 
-        // Change cursor on hover
         map.current.on('mouseenter', 'admin-points', () => {
           if (map.current) map.current.getCanvas().style.cursor = 'pointer';
         });
