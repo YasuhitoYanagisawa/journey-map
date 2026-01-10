@@ -1,6 +1,7 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Upload, ImageIcon, Loader2 } from 'lucide-react';
+import { Upload, ImageIcon, Loader2, Camera } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 interface PhotoDropzoneProps {
   onFilesSelected: (files: File[]) => void;
@@ -10,6 +11,8 @@ interface PhotoDropzoneProps {
 const PhotoDropzone = ({ onFilesSelected, isLoading = false }: PhotoDropzoneProps) => {
   const [isDragging, setIsDragging] = useState(false);
   const [processingCount, setProcessingCount] = useState(0);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFiles = useCallback((files: File[]) => {
     if (files.length === 0) return;
@@ -46,6 +49,18 @@ const PhotoDropzone = ({ onFilesSelected, isLoading = false }: PhotoDropzoneProp
     setIsDragging(false);
   }, []);
 
+  const handleCameraClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    cameraInputRef.current?.click();
+  };
+
+  const handleFileClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    fileInputRef.current?.click();
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -53,7 +68,25 @@ const PhotoDropzone = ({ onFilesSelected, isLoading = false }: PhotoDropzoneProp
       transition={{ duration: 0.5 }}
       className="w-full max-w-2xl mx-auto"
     >
-      <label
+      {/* Hidden inputs */}
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        onChange={handleFileInput}
+        className="hidden"
+      />
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        accept="image/*"
+        onChange={handleFileInput}
+        className="hidden"
+      />
+
+      <div
         onDrop={handleDrop}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
@@ -61,7 +94,6 @@ const PhotoDropzone = ({ onFilesSelected, isLoading = false }: PhotoDropzoneProp
           relative flex flex-col items-center justify-center
           w-full h-64 p-8
           border-2 border-dashed rounded-2xl
-          cursor-pointer
           transition-all duration-300
           ${isDragging 
             ? 'border-primary bg-primary/10 scale-[1.02]' 
@@ -69,14 +101,6 @@ const PhotoDropzone = ({ onFilesSelected, isLoading = false }: PhotoDropzoneProp
           }
         `}
       >
-        <input
-          type="file"
-          multiple
-          accept="image/*"
-          onChange={handleFileInput}
-          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-        />
-        
         <AnimatePresence mode="wait">
           {isLoading ? (
             <motion.div
@@ -118,9 +142,30 @@ const PhotoDropzone = ({ onFilesSelected, isLoading = false }: PhotoDropzoneProp
                 <p className="text-lg font-medium text-foreground">
                   {isDragging ? '写真をドロップ' : '写真をドラッグ&ドロップ'}
                 </p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  またはクリックして選択
-                </p>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex flex-col sm:flex-row items-center gap-3 mt-2">
+                <Button
+                  type="button"
+                  variant="default"
+                  size="sm"
+                  onClick={handleCameraClick}
+                  className="gap-2"
+                >
+                  <Camera className="w-4 h-4" />
+                  カメラで撮影
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleFileClick}
+                  className="gap-2"
+                >
+                  <Upload className="w-4 h-4" />
+                  写真を選択
+                </Button>
               </div>
 
               <p className="text-xs text-muted-foreground/70 mt-2">
@@ -129,7 +174,7 @@ const PhotoDropzone = ({ onFilesSelected, isLoading = false }: PhotoDropzoneProp
             </motion.div>
           )}
         </AnimatePresence>
-      </label>
+      </div>
     </motion.div>
   );
 };
