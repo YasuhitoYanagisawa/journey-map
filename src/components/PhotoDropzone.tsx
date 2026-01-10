@@ -1,70 +1,25 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Upload, ImageIcon, Loader2 } from 'lucide-react';
-import { parseMultiplePhotos } from '@/utils/exifParser';
-import { toast } from '@/components/ui/sonner';
-import { PhotoLocation } from '@/types/photo';
 
 interface PhotoDropzoneProps {
-  onPhotosLoaded: (photos: PhotoLocation[]) => void;
+  onFilesSelected: (files: File[]) => void;
   isLoading?: boolean;
 }
 
-const PhotoDropzone = ({ onPhotosLoaded, isLoading = false }: PhotoDropzoneProps) => {
+const PhotoDropzone = ({ onFilesSelected, isLoading = false }: PhotoDropzoneProps) => {
   const [isDragging, setIsDragging] = useState(false);
-  const [processedCount, setProcessedCount] = useState(0);
-  const [totalCount, setTotalCount] = useState(0);
-  const [isParsing, setIsParsing] = useState(false);
-  const abortRef = useRef<AbortController | null>(null);
+  const [processingCount, setProcessingCount] = useState(0);
 
-  const parseFiles = useCallback(async (files: File[]) => {
+  const handleFiles = useCallback((files: File[]) => {
     if (files.length === 0) return;
-    if (isParsing) return;
+    setProcessingCount(files.length);
+    onFilesSelected(files);
+    // Reset after a delay
+    setTimeout(() => setProcessingCount(0), 500);
+  }, [onFilesSelected]);
 
-    const controller = new AbortController();
-    abortRef.current = controller;
-
-    setIsParsing(true);
-    setTotalCount(files.length);
-    setProcessedCount(0);
-
-    try {
-      const photos = await parseMultiplePhotos(files, {
-        concurrency: 2,
-        yieldEvery: 3,
-        signal: controller.signal,
-        onProgress: (processed) => setProcessedCount(processed),
-      });
-
-      const skipped = files.length - photos.length;
-      if (controller.signal.aborted) return;
-
-      if (photos.length === 0) {
-        toast.error('位置情報のある写真が見つかりませんでした', {
-          description: '位置情報（GPS）がOFFの写真や位置情報なしの画像はスキップされます。',
-        });
-        return;
-      }
-
-      if (skipped > 0) {
-        toast.message('一部の写真をスキップしました', {
-          description: `読み込み: ${photos.length}枚 / スキップ: ${skipped}枚`,
-        });
-      }
-
-      onPhotosLoaded(photos);
-    } catch (error) {
-      console.error('[EXIF] batch parse failed:', error);
-      toast.error('写真の解析に失敗しました', {
-        description: '別の写真（位置情報ありのJPEG）で試すか、しばらく待ってから再度お試しください。',
-      });
-    } finally {
-      abortRef.current = null;
-      setIsParsing(false);
-    }
-  }, [isParsing, onPhotosLoaded]);
-
-  const handleDrop = useCallback(async (e: React.DragEvent) => {
+  const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
 
@@ -72,15 +27,14 @@ const PhotoDropzone = ({ onPhotosLoaded, isLoading = false }: PhotoDropzoneProps
       file.type.startsWith('image/')
     );
 
-    await parseFiles(files);
-  }, [parseFiles]);
+    handleFiles(files);
+  }, [handleFiles]);
 
-  const handleFileInput = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     e.target.value = '';
-    await parseFiles(files);
-  }, [parseFiles]);
-
+    handleFiles(files);
+  }, [handleFiles]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -124,7 +78,7 @@ const PhotoDropzone = ({ onPhotosLoaded, isLoading = false }: PhotoDropzoneProps
         />
         
         <AnimatePresence mode="wait">
-          {isLoading || (totalCount > 0 && processedCount < totalCount) ? (
+          {isLoading ? (
             <motion.div
               key="loading"
               initial={{ opacity: 0, scale: 0.9 }}
@@ -134,7 +88,7 @@ const PhotoDropzone = ({ onPhotosLoaded, isLoading = false }: PhotoDropzoneProps
             >
               <Loader2 className="w-12 h-12 text-primary animate-spin" />
               <p className="text-muted-foreground">
-                写真を処理中... {processedCount}/{totalCount}
+                写真を処理中...
               </p>
             </motion.div>
           ) : (
