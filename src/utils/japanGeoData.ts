@@ -84,6 +84,7 @@ export async function loadPrefectureGeoJSON(): Promise<FeatureCollection | null>
 
 /**
  * Load city-level GeoJSON data for specific prefectures
+ * Uses smartnews-smri/japan-topography municipality dataset (simplified 1%)
  */
 export async function loadCityGeoJSON(prefectureNames: string[]): Promise<FeatureCollection | null> {
   const features: Feature[] = [];
@@ -100,18 +101,21 @@ export async function loadCityGeoJSON(prefectureNames: string[]): Promise<Featur
       continue;
     }
 
-    // Fetch from GitHub
-    const url = `https://raw.githubusercontent.com/niiyz/JapanCityGeoJson/master/geojson/prefectures/${code}.json`;
-    
+    // Fetch municipality polygons by prefecture
+    // Example: N03-21_13_210101.json (Tokyo)
+    const url = `https://raw.githubusercontent.com/smartnews-smri/japan-topography/main/data/municipality/geojson/s0010/N03-21_${code}_210101.json`;
+
     fetchPromises.push(
-      fetchGeoJSON(url).then(data => {
-        if (data) {
-          cityGeoJSONCache.set(code, data);
-          features.push(...data.features);
-        }
-      }).catch(err => {
-        console.warn(`Failed to load city GeoJSON for ${prefName}:`, err);
-      })
+      fetchGeoJSON(url)
+        .then((data) => {
+          if (data) {
+            cityGeoJSONCache.set(code, data);
+            features.push(...data.features);
+          }
+        })
+        .catch((err) => {
+          console.warn(`Failed to load municipality GeoJSON for ${prefName}:`, err);
+        })
     );
   }
 
@@ -158,14 +162,14 @@ export function getPrefectureName(feature: Feature): string | null {
 }
 
 /**
- * Get city name from GeoJSON properties (niiyz/JapanCityGeoJson format)
+ * Get municipality (city/ward/town/village) name from GeoJSON properties
+ * smartnews-smri/japan-topography format uses N03_004 for municipality name.
  */
 export function getCityName(feature: Feature): string | null {
   const props = feature.properties;
   if (!props) return null;
-  
-  // niiyz format uses 'name' for city name
-  return props.name || props.N03_004 || props.N03_003 || null;
+
+  return props.N03_004 || props.name || props.N03_003 || props.NAME || null;
 }
 
 /**
