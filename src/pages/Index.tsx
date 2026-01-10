@@ -189,84 +189,89 @@ const Index = () => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="h-[calc(100vh-5rem)] flex"
+              className="flex flex-col"
             >
-              {/* Map Area */}
-              <div className="flex-1 relative p-4">
-                {/* View Mode Toggle */}
-                <div className="absolute top-6 left-6 z-10 space-y-2">
-                  <ViewModeToggle 
-                    currentMode={viewMode}
-                    onChange={setViewMode}
-                  />
-                  <DateFilter 
-                    photos={photos}
-                    onFilterChange={handleFilterChange}
-                  />
-                </div>
-
-                {/* Add More Photos Button */}
-                <div className="absolute bottom-6 left-6 z-10">
-                  <label className="glass-panel px-4 py-2 cursor-pointer flex items-center gap-2 hover:border-primary/50 transition-colors">
-                    <Camera className="w-4 h-4 text-primary" />
-                    <span className="text-sm">写真を追加</span>
-                    <input
-                      type="file"
-                      multiple
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) => {
-                        const files = Array.from(e.target.files || []);
-                        if (files.length > 0) {
-                          handlePhotosLoaded(files);
-                        }
-                      }}
+              {/* Map + Sidebar Row */}
+              <div className="h-[calc(100vh-5rem)] flex">
+                {/* Map Area */}
+                <div className="flex-1 relative p-4">
+                  {/* View Mode Toggle */}
+                  <div className="absolute top-6 left-6 z-10 space-y-2">
+                    <ViewModeToggle 
+                      currentMode={viewMode}
+                      onChange={setViewMode}
                     />
-                  </label>
+                    <DateFilter 
+                      photos={photos}
+                      onFilterChange={handleFilterChange}
+                    />
+                  </div>
+
+                  {/* Add More Photos Button */}
+                  <div className="absolute bottom-6 left-6 z-10">
+                    <label className="glass-panel px-4 py-2 cursor-pointer flex items-center gap-2 hover:border-primary/50 transition-colors">
+                      <Camera className="w-4 h-4 text-primary" />
+                      <span className="text-sm">写真を追加</span>
+                      <input
+                        type="file"
+                        multiple
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const files = Array.from(e.target.files || []);
+                          if (files.length > 0) {
+                            handlePhotosLoaded(files);
+                          }
+                        }}
+                      />
+                    </label>
+                  </div>
+
+                  <PhotoMap
+                    photos={photos}
+                    viewMode={viewMode}
+                    onGridStatsChange={setGridStats}
+                    highlightedCellId={highlightedCellId}
+                    filteredIndices={filteredIndices}
+                    adminStats={adminStats}
+                    highlightedAreaId={highlightedAreaId}
+                  />
                 </div>
 
-                <PhotoMap
-                  photos={photos}
-                  viewMode={viewMode}
-                  onGridStatsChange={setGridStats}
-                  highlightedCellId={highlightedCellId}
-                  filteredIndices={filteredIndices}
-                  adminStats={adminStats}
-                  highlightedAreaId={highlightedAreaId}
-                />
+                {/* Sidebar */}
+                <motion.div
+                  initial={{ x: 50, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  transition={{ delay: 0.2 }}
+                  className="w-80 p-4 space-y-4 overflow-y-auto"
+                >
+                  {stats && <StatsPanel stats={stats} title={statsLabel} />}
+                  {viewMode === 'grid' && gridStats && (
+                    <GridStatsPanel
+                      gridStats={gridStats}
+                      onCellClick={setHighlightedCellId}
+                    />
+                  )}
+                  {viewMode === 'admin' && adminStats && (
+                    <AdminStatsPanel
+                      stats={adminStats}
+                      adminLevel={adminLevel}
+                      onLevelChange={setAdminLevel}
+                      onAreaClick={setHighlightedAreaId}
+                      onUpdateAddressInfo={updateAddressInfo}
+                      hasPhotosWithoutAddress={hasPhotosWithoutAddress}
+                    />
+                  )}
+                  {viewMode !== 'grid' && viewMode !== 'admin' && <PhotoTimeline photos={displayPhotos} />}
+                </motion.div>
               </div>
 
-              {/* Sidebar */}
-              <motion.div
-                initial={{ x: 50, opacity: 0 }}
-                animate={{ x: 0, opacity: 1 }}
-                transition={{ delay: 0.2 }}
-                className="w-80 p-4 space-y-4 overflow-y-auto"
-              >
-                {stats && <StatsPanel stats={stats} title={statsLabel} />}
-                {viewMode === 'grid' && gridStats && (
-                  <GridStatsPanel
-                    gridStats={gridStats}
-                    onCellClick={setHighlightedCellId}
-                  />
-                )}
-                {viewMode === 'admin' && adminStats && (
-                  <AdminStatsPanel
-                    stats={adminStats}
-                    adminLevel={adminLevel}
-                    onLevelChange={setAdminLevel}
-                    onAreaClick={setHighlightedAreaId}
-                    onUpdateAddressInfo={updateAddressInfo}
-                    hasPhotosWithoutAddress={hasPhotosWithoutAddress}
-                  />
-                )}
-                {viewMode !== 'grid' && viewMode !== 'admin' && (
-                  <>
-                    <PhotoTimeline photos={displayPhotos} />
-                    <NearbyNews photos={displayPhotos} />
-                  </>
-                )}
-              </motion.div>
+              {/* News Section - Below Map */}
+              {viewMode !== 'grid' && viewMode !== 'admin' && (
+                <div className="px-4 pb-4">
+                  <NearbyNews photos={displayPhotos} />
+                </div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
