@@ -95,42 +95,44 @@ const NearbyNews = ({ photos }: NearbyNewsProps) => {
 
   return (
     <motion.div
-      initial={{ opacity: 0, x: 20 }}
-      animate={{ opacity: 1, x: 0 }}
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, delay: 0.4 }}
       className="glass-panel p-6"
     >
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <Newspaper className="w-5 h-5 text-primary" />
-          <h2 className="text-lg font-semibold gradient-text">近くのニュース</h2>
+          <h2 className="text-lg font-semibold gradient-text">この日の近くのニュース</h2>
         </div>
-        {hasFetched && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={fetchNews}
-            disabled={isLoading}
-          >
-            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
-          </Button>
-        )}
+        <div className="flex items-center gap-3">
+          <p className="text-sm text-muted-foreground">
+            📍 {searchParams.location} • 📅 {new Date(searchParams.date).toLocaleDateString('ja-JP')}
+          </p>
+          {hasFetched && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={fetchNews}
+              disabled={isLoading}
+            >
+              <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+            </Button>
+          )}
+        </div>
       </div>
 
-      <p className="text-xs text-muted-foreground mb-3">
-        📍 {searchParams.location} • 📅 {new Date(searchParams.date).toLocaleDateString('ja-JP')}
-      </p>
-
       {!hasFetched && !isLoading && (
-        <Button
-          onClick={fetchNews}
-          variant="outline"
-          className="w-full"
-          disabled={isLoading}
-        >
-          <Newspaper className="w-4 h-4 mr-2" />
-          ニュースを検索
-        </Button>
+        <div className="flex justify-center py-4">
+          <Button
+            onClick={fetchNews}
+            variant="outline"
+            disabled={isLoading}
+          >
+            <Newspaper className="w-4 h-4 mr-2" />
+            ニュースを検索
+          </Button>
+        </div>
       )}
 
       {isLoading && (
@@ -154,43 +156,39 @@ const NearbyNews = ({ photos }: NearbyNewsProps) => {
       )}
 
       {news.length > 0 && (
-        <div className="space-y-3 max-h-[250px] overflow-y-auto pr-2">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
           {news.map((item, index) => (
-            <motion.div
+            <motion.a
               key={index}
+              href={item.url || undefined}
+              target="_blank"
+              rel="noopener noreferrer"
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3, delay: 0.05 * index }}
-              className="p-3 rounded-lg bg-secondary/30 hover:bg-secondary/50 transition-colors"
+              className="block p-4 rounded-lg bg-secondary/30 hover:bg-secondary/50 transition-colors group"
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-sm font-medium text-foreground line-clamp-2">
+                  <h3 className="text-sm font-medium text-foreground line-clamp-2 group-hover:text-primary transition-colors">
                     {item.title}
                   </h3>
                   {item.summary && (
-                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                    <p className="text-xs text-muted-foreground mt-2 line-clamp-2">
                       {item.summary}
                     </p>
                   )}
                   {item.source && (
-                    <p className="text-xs text-primary/70 mt-1">
+                    <p className="text-xs text-primary/70 mt-2">
                       {item.source}
                     </p>
                   )}
                 </div>
                 {item.url && (
-                  <a
-                    href={item.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex-shrink-0 p-1.5 rounded hover:bg-primary/10 transition-colors"
-                  >
-                    <ExternalLink className="w-4 h-4 text-primary" />
-                  </a>
+                  <ExternalLink className="w-4 h-4 text-muted-foreground group-hover:text-primary flex-shrink-0 transition-colors" />
                 )}
               </div>
-            </motion.div>
+            </motion.a>
           ))}
         </div>
       )}
