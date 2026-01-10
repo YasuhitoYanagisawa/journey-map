@@ -8,7 +8,7 @@ import { motion } from 'framer-motion';
 import { Key } from 'lucide-react';
 import { buildPhotoGrid, getGridCellColor, GridStats } from '@/utils/gridCalculator';
 import { AdminBoundaryStats } from '@/utils/adminBoundaryCalculator';
-import { loadPrefectureGeoJSON, loadCityGeoJSON, createPrefectureFeatures, createCityFeatures, getAdminAreaColor } from '@/utils/japanGeoData';
+import { loadPrefectureGeoJSON, loadCityGeoJSON, loadTownGeoJSON, createPrefectureFeatures, createCityFeatures, createTownFeatures, getAdminAreaColor } from '@/utils/japanGeoData';
 
 interface PhotoMapProps {
   photos: PhotoLocation[];
@@ -816,7 +816,136 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId, filt
           }
         }
 
-        // Fallback: Use circle markers for town level or when GeoJSON fails
+        // For town level, try to load town GeoJSON polygons
+        if (adminStats.level === 'town') {
+          // Get unique prefectures from photos that have town data
+          const prefecturesWithPhotos = new Set<string>();
+          displayPhotos.forEach(photo => {
+            if ((photo as any).prefecture) {
+              prefecturesWithPhotos.add((photo as any).prefecture);
+            }
+          });
+
+          console.log('Town level - prefectures with photos:', Array.from(prefecturesWithPhotos));
+          console.log('Town level - adminStats.cells:', adminStats.cells.map(c => c.name));
+
+          if (prefecturesWithPhotos.size > 0) {
+            const geoData = await loadTownGeoJSON(Array.from(prefecturesWithPhotos));
+            
+            console.log('Town GeoJSON loaded:', geoData ? `${geoData.features.length} features` : 'null');
+            
+            if (geoData && map.current) {
+              const townCounts = new Map<string, { count: number; intensity: number }>();
+              adminStats.cells.forEach(cell => {
+                townCounts.set(cell.name, { count: cell.count, intensity: cell.intensity });
+              });
+
+              console.log('Town counts:', Array.from(townCounts.entries()));
+
+              const townFeatures = createTownFeatures(geoData, townCounts);
+
+              console.log('Town features matched:', townFeatures.features.length);
+
+              if (townFeatures.features.length > 0) {
+                map.current.addSource('admin-polygons', {
+                  type: 'geojson',
+                  data: townFeatures,
+                });
+
+                map.current.addLayer({
+                  id: 'admin-polygon-fill',
+                  type: 'fill',
+                  source: 'admin-polygons',
+                  paint: {
+                    'fill-color': [
+                      'interpolate',
+                      ['linear'],
+                      ['get', 'intensity'],
+                      0, 'hsl(210, 70%, 50%)',
+                      0.3, 'hsl(180, 70%, 50%)',
+                      0.5, 'hsl(60, 80%, 50%)',
+                      0.7, 'hsl(36, 90%, 50%)',
+                      1, 'hsl(0, 80%, 50%)',
+                    ],
+                    'fill-opacity': 0.6,
+                  },
+                });
+
+                map.current.addLayer({
+                  id: 'admin-polygon-outline',
+                  type: 'line',
+                  source: 'admin-polygons',
+                  paint: {
+                    'line-color': '#fff',
+                    'line-width': 2,
+                    'line-opacity': 0.8,
+                  },
+                });
+
+                // Add labels as separate point source (1 label per area)
+                const labelPoints = {
+                  type: 'FeatureCollection' as const,
+                  features: adminStats.cells.map(cell => ({
+                    type: 'Feature' as const,
+                    properties: { name: cell.name, count: cell.count },
+                    geometry: { type: 'Point' as const, coordinates: [cell.centerLng, cell.centerLat] },
+                  })),
+                };
+                map.current.addSource('admin-polygon-labels-src', { type: 'geojson', data: labelPoints });
+                map.current.addLayer({
+                  id: 'admin-polygon-labels',
+                  type: 'symbol',
+                  source: 'admin-polygon-labels-src',
+                  layout: {
+                    'text-field': ['concat', ['get', 'name'], '\n', ['get', 'count'], '枚の写真'],
+                    'text-size': 12,
+                    'text-font': ['DIN Pro Bold', 'Arial Unicode MS Bold'],
+                    'text-allow-overlap': true,
+                  },
+                  paint: {
+                    'text-color': '#fff',
+                    'text-halo-color': 'rgba(0,0,0,0.8)',
+                    'text-halo-width': 2,
+                  },
+                });
+
+                // Auto-fit to show all colored polygons
+                fitToFeatureCollection(townFeatures, { padding: 80, maxZoom: 15 });
+
+                map.current.on('click', 'admin-polygon-fill', (e) => {
+                  if (!e.features || e.features.length === 0) return;
+                  const props = e.features[0].properties;
+                  if (!props) return;
+
+                  const area = adminStats.cells.find(c => 
+                    c.name === props.name || 
+                    c.name === props.matchedName ||
+                    c.name.includes(props.name) || 
+                    props.name.includes(c.name)
+                  );
+                  if (area) {
+                    map.current!.flyTo({
+                      center: [area.centerLng, area.centerLat],
+                      zoom: 15,
+                      duration: 800,
+                    });
+                  }
+                });
+
+                map.current.on('mouseenter', 'admin-polygon-fill', () => {
+                  if (map.current) map.current.getCanvas().style.cursor = 'pointer';
+                });
+                map.current.on('mouseleave', 'admin-polygon-fill', () => {
+                  if (map.current) map.current.getCanvas().style.cursor = '';
+                });
+
+                return;
+              }
+            }
+          }
+        }
+
+        // Fallback: Use circle markers when GeoJSON fails
         const geojsonData = {
           type: 'FeatureCollection' as const,
           features: adminStats.cells.map((cell, index) => ({
