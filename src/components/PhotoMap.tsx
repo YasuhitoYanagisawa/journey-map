@@ -641,10 +641,13 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId, filt
                 type: 'symbol',
                 source: 'admin-polygon-labels-src',
                 layout: {
-                  'text-field': ['concat', ['get', 'name'], '\n', ['get', 'count'], '枚の写真'],
+                  'text-field': ['concat', ['get', 'name'], '\n', ['get', 'count'], '枚'],
                   'text-size': 14,
                   'text-font': ['DIN Pro Bold', 'Arial Unicode MS Bold'],
-                  'text-allow-overlap': true,
+                  'text-allow-overlap': false,
+                  'text-ignore-placement': false,
+                  'text-optional': true,
+                  'text-padding': 5,
                 },
                 paint: {
                   'text-color': '#fff',
@@ -768,10 +771,13 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId, filt
                   type: 'symbol',
                   source: 'admin-polygon-labels-src',
                   layout: {
-                    'text-field': ['concat', ['get', 'name'], '\n', ['get', 'count'], '枚の写真'],
+                    'text-field': ['concat', ['get', 'name'], '\n', ['get', 'count'], '枚'],
                     'text-size': 13,
                     'text-font': ['DIN Pro Bold', 'Arial Unicode MS Bold'],
-                    'text-allow-overlap': true,
+                    'text-allow-overlap': false,
+                    'text-ignore-placement': false,
+                    'text-optional': true,
+                    'text-padding': 5,
                   },
                   paint: {
                     'text-color': '#fff',
@@ -899,10 +905,13 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId, filt
                   type: 'symbol',
                   source: 'admin-polygon-labels-src',
                   layout: {
-                    'text-field': ['concat', ['get', 'name'], '\n', ['get', 'count'], '枚の写真'],
+                    'text-field': ['concat', ['get', 'name'], '\n', ['get', 'count'], '枚'],
                     'text-size': 12,
                     'text-font': ['DIN Pro Bold', 'Arial Unicode MS Bold'],
-                    'text-allow-overlap': true,
+                    'text-allow-overlap': false,
+                    'text-ignore-placement': false,
+                    'text-optional': true,
+                    'text-padding': 8,
                   },
                   paint: {
                     'text-color': '#fff',
