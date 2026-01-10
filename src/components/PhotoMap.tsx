@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useMemo } from 'react';
+import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { PhotoLocation, ViewMode } from '@/types/photo';
@@ -13,20 +13,37 @@ interface PhotoMapProps {
   viewMode: ViewMode;
   onGridStatsChange?: (stats: GridStats | null) => void;
   highlightedCellId?: string | null;
+  filteredIndices?: number[] | null;
 }
 
-const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId }: PhotoMapProps) => {
+const MAPBOX_TOKEN_KEY = 'phototrail_mapbox_token';
+
+const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId, filteredIndices }: PhotoMapProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const markersRef = useRef<mapboxgl.Marker[]>([]);
-  const [mapboxToken, setMapboxToken] = useState<string>('');
-  const [isTokenSet, setIsTokenSet] = useState(false);
+  const popupRef = useRef<mapboxgl.Popup | null>(null);
+  
+  // Load token from localStorage on init
+  const [mapboxToken, setMapboxToken] = useState<string>(() => {
+    return localStorage.getItem(MAPBOX_TOKEN_KEY) || '';
+  });
+  const [isTokenSet, setIsTokenSet] = useState(() => {
+    const saved = localStorage.getItem(MAPBOX_TOKEN_KEY);
+    return saved ? saved.trim().length > 0 : false;
+  });
+
+  // Filter photos based on indices
+  const displayPhotos = useMemo(() => {
+    if (!filteredIndices) return photos;
+    return filteredIndices.map(i => photos[i]).filter(Boolean);
+  }, [photos, filteredIndices]);
 
   // Calculate grid stats when in grid mode
   const gridStats = useMemo(() => {
-    if (viewMode !== 'grid' || photos.length === 0) return null;
-    return buildPhotoGrid(photos, 500);
-  }, [photos, viewMode]);
+    if (viewMode !== 'grid' || displayPhotos.length === 0) return null;
+    return buildPhotoGrid(displayPhotos, 500);
+  }, [displayPhotos, viewMode]);
 
   // Notify parent of grid stats
   useEffect(() => {
@@ -35,6 +52,7 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId }: Ph
 
   const handleSetToken = () => {
     if (mapboxToken.trim()) {
+      localStorage.setItem(MAPBOX_TOKEN_KEY, mapboxToken.trim());
       setIsTokenSet(true);
     }
   };
@@ -48,8 +66,8 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId }: Ph
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
       style: 'mapbox://styles/mapbox/dark-v11',
-      center: photos.length > 0 
-        ? [photos[0].longitude, photos[0].latitude]
+      center: displayPhotos.length > 0 
+        ? [displayPhotos[0].longitude, displayPhotos[0].latitude]
         : [139.6917, 35.6895], // Tokyo default
       zoom: 12,
     });
@@ -65,7 +83,7 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId }: Ph
   }, [isTokenSet, mapboxToken]);
 
   // Helper to clean up all map layers/sources
-  const cleanupMapLayers = () => {
+  const cleanupMapLayers = useCallback(() => {
     if (!map.current) return;
 
     // Remove grid layers
@@ -96,78 +114,217 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId }: Ph
       }
       map.current.removeSource('route');
     }
-  };
+
+    // Remove cluster layers
+    if (map.current.getSource('photos-cluster')) {
+      ['clusters', 'cluster-count', 'unclustered-point'].forEach((layerId) => {
+        if (map.current!.getLayer(layerId)) {
+          map.current!.removeLayer(layerId);
+        }
+      });
+      map.current.removeSource('photos-cluster');
+    }
+  }, []);
+
+  // Show popup for a photo
+  const showPhotoPopup = useCallback((photo: PhotoLocation, index: number, total: number) => {
+    if (!map.current) return;
+
+    // Close existing popup
+    if (popupRef.current) {
+      popupRef.current.remove();
+    }
+
+    popupRef.current = new mapboxgl.Popup({ 
+      offset: 25,
+      closeButton: true,
+      closeOnClick: true,
+      maxWidth: '200px'
+    })
+      .setLngLat([photo.longitude, photo.latitude])
+      .setHTML(`
+        <div style="padding: 8px; color: #333;">
+          <img src="${photo.thumbnailUrl}" style="width: 150px; height: 100px; object-fit: cover; border-radius: 4px;" />
+          <p style="margin-top: 8px; font-size: 12px; font-weight: 500;">${photo.filename}</p>
+          <p style="margin-top: 4px; font-size: 11px; color: #666;">
+            ${photo.timestamp.toLocaleString('ja-JP')}
+          </p>
+          <p style="margin-top: 2px; font-size: 11px; color: #888;">
+            #${index + 1} / ${total}
+          </p>
+        </div>
+      `)
+      .addTo(map.current);
+  }, []);
 
   // Update markers/visualization
   useEffect(() => {
-    if (!map.current || !isTokenSet || photos.length === 0) return;
+    if (!map.current || !isTokenSet) return;
 
     // Clear existing markers
     markersRef.current.forEach((marker) => marker.remove());
     markersRef.current = [];
 
-    cleanupMapLayers();
-
-    // Fit bounds to photos
-    if (photos.length > 0) {
-      const bounds = new mapboxgl.LngLatBounds();
-      photos.forEach((photo) => {
-        bounds.extend([photo.longitude, photo.latitude]);
-      });
-      map.current.fitBounds(bounds, { padding: 60, maxZoom: 15 });
+    // Close existing popup
+    if (popupRef.current) {
+      popupRef.current.remove();
+      popupRef.current = null;
     }
 
-    const sortedPhotos = [...photos].sort(
+    cleanupMapLayers();
+
+    if (displayPhotos.length === 0) return;
+
+    // Fit bounds to photos
+    const bounds = new mapboxgl.LngLatBounds();
+    displayPhotos.forEach((photo) => {
+      bounds.extend([photo.longitude, photo.latitude]);
+    });
+    map.current.fitBounds(bounds, { padding: 60, maxZoom: 15 });
+
+    const sortedPhotos = [...displayPhotos].sort(
       (a, b) => a.timestamp.getTime() - b.timestamp.getTime()
     );
 
     if (viewMode === 'markers') {
-      // Add photo markers
-      sortedPhotos.forEach((photo, index) => {
-        const el = document.createElement('div');
-        el.className = 'photo-marker';
-        el.style.cssText = `
-          width: 48px;
-          height: 48px;
-          border-radius: 8px;
-          border: 3px solid hsl(24 95% 53%);
-          background-image: url(${photo.thumbnailUrl});
-          background-size: cover;
-          background-position: center;
-          box-shadow: 0 4px 12px rgba(0,0,0,0.4);
-          cursor: pointer;
-          transition: transform 0.2s;
-        `;
-        el.onmouseenter = () => (el.style.transform = 'scale(1.15)');
-        el.onmouseleave = () => (el.style.transform = 'scale(1)');
+      // Use clustering for markers
+      const geojsonData = {
+        type: 'FeatureCollection' as const,
+        features: sortedPhotos.map((photo, index) => ({
+          type: 'Feature' as const,
+          properties: {
+            id: index,
+            thumbnailUrl: photo.thumbnailUrl,
+            filename: photo.filename,
+            timestamp: photo.timestamp.toISOString(),
+          },
+          geometry: {
+            type: 'Point' as const,
+            coordinates: [photo.longitude, photo.latitude],
+          },
+        })),
+      };
 
-        const popup = new mapboxgl.Popup({ offset: 25 }).setHTML(`
-          <div style="padding: 8px; color: #333;">
-            <img src="${photo.thumbnailUrl}" style="width: 150px; height: 100px; object-fit: cover; border-radius: 4px;" />
-            <p style="margin-top: 8px; font-size: 12px; font-weight: 500;">${photo.filename}</p>
-            <p style="margin-top: 4px; font-size: 11px; color: #666;">
-              ${photo.timestamp.toLocaleString('ja-JP')}
-            </p>
-            <p style="margin-top: 2px; font-size: 11px; color: #888;">
-              #${index + 1} / ${photos.length}
-            </p>
-          </div>
-        `);
-
-        const marker = new mapboxgl.Marker(el)
-          .setLngLat([photo.longitude, photo.latitude])
-          .setPopup(popup)
-          .addTo(map.current!);
-
-        markersRef.current.push(marker);
+      map.current.addSource('photos-cluster', {
+        type: 'geojson',
+        data: geojsonData,
+        cluster: true,
+        clusterMaxZoom: 14,
+        clusterRadius: 50,
       });
+
+      // Cluster circles
+      map.current.addLayer({
+        id: 'clusters',
+        type: 'circle',
+        source: 'photos-cluster',
+        filter: ['has', 'point_count'],
+        paint: {
+          'circle-color': [
+            'step',
+            ['get', 'point_count'],
+            'hsl(24, 95%, 53%)',    // 1-9: orange
+            10,
+            'hsl(36, 100%, 50%)',   // 10-29: amber
+            30,
+            'hsl(0, 80%, 55%)',     // 30+: red
+          ],
+          'circle-radius': [
+            'step',
+            ['get', 'point_count'],
+            20,   // 1-9
+            10,
+            25,   // 10-29
+            30,
+            35,   // 30+
+          ],
+          'circle-stroke-width': 3,
+          'circle-stroke-color': '#fff',
+        },
+      });
+
+      // Cluster count labels
+      map.current.addLayer({
+        id: 'cluster-count',
+        type: 'symbol',
+        source: 'photos-cluster',
+        filter: ['has', 'point_count'],
+        layout: {
+          'text-field': ['get', 'point_count_abbreviated'],
+          'text-font': ['DIN Pro Medium', 'Arial Unicode MS Bold'],
+          'text-size': 14,
+        },
+        paint: {
+          'text-color': '#fff',
+        },
+      });
+
+      // Individual photo points (when not clustered)
+      map.current.addLayer({
+        id: 'unclustered-point',
+        type: 'circle',
+        source: 'photos-cluster',
+        filter: ['!', ['has', 'point_count']],
+        paint: {
+          'circle-color': 'hsl(24, 95%, 53%)',
+          'circle-radius': 12,
+          'circle-stroke-width': 3,
+          'circle-stroke-color': '#fff',
+        },
+      });
+
+      // Click handlers for clusters
+      map.current.on('click', 'clusters', (e) => {
+        const features = map.current!.queryRenderedFeatures(e.point, {
+          layers: ['clusters'],
+        });
+        const clusterId = features[0].properties?.cluster_id;
+        const source = map.current!.getSource('photos-cluster') as mapboxgl.GeoJSONSource;
+        
+        source.getClusterExpansionZoom(clusterId, (err, zoom) => {
+          if (err) return;
+
+          map.current!.easeTo({
+            center: (features[0].geometry as any).coordinates,
+            zoom: zoom,
+          });
+        });
+      });
+
+      // Click handler for individual points
+      map.current.on('click', 'unclustered-point', (e) => {
+        if (!e.features || e.features.length === 0) return;
+        const feature = e.features[0];
+        const props = feature.properties;
+        if (!props) return;
+
+        const photo = sortedPhotos[props.id];
+        if (photo) {
+          showPhotoPopup(photo, props.id, sortedPhotos.length);
+        }
+      });
+
+      // Change cursor on hover
+      map.current.on('mouseenter', 'clusters', () => {
+        if (map.current) map.current.getCanvas().style.cursor = 'pointer';
+      });
+      map.current.on('mouseleave', 'clusters', () => {
+        if (map.current) map.current.getCanvas().style.cursor = '';
+      });
+      map.current.on('mouseenter', 'unclustered-point', () => {
+        if (map.current) map.current.getCanvas().style.cursor = 'pointer';
+      });
+      map.current.on('mouseleave', 'unclustered-point', () => {
+        if (map.current) map.current.getCanvas().style.cursor = '';
+      });
+
     } else if (viewMode === 'heatmap') {
       // Add heatmap layer
       map.current.addSource('photos', {
         type: 'geojson',
         data: {
           type: 'FeatureCollection',
-          features: photos.map((photo) => ({
+          features: displayPhotos.map((photo) => ({
             type: 'Feature',
             properties: {},
             geometry: {
@@ -252,10 +409,10 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId }: Ph
             box-shadow: 0 2px 8px rgba(0,0,0,0.3);
           "></div>
         `;
-        new mapboxgl.Marker(startEl)
+        const startMarker = new mapboxgl.Marker(startEl)
           .setLngLat([sortedPhotos[0].longitude, sortedPhotos[0].latitude])
           .addTo(map.current);
-        markersRef.current.push(new mapboxgl.Marker(startEl));
+        markersRef.current.push(startMarker);
 
         if (sortedPhotos.length > 1) {
           const endEl = document.createElement('div');
@@ -269,10 +426,10 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId }: Ph
             "></div>
           `;
           const lastPhoto = sortedPhotos[sortedPhotos.length - 1];
-          new mapboxgl.Marker(endEl)
+          const endMarker = new mapboxgl.Marker(endEl)
             .setLngLat([lastPhoto.longitude, lastPhoto.latitude])
             .addTo(map.current);
-          markersRef.current.push(new mapboxgl.Marker(endEl));
+          markersRef.current.push(endMarker);
         }
       }
     } else if (viewMode === 'grid' && gridStats) {
@@ -347,7 +504,7 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId }: Ph
         },
       });
     }
-  }, [photos, viewMode, isTokenSet, gridStats]);
+  }, [displayPhotos, viewMode, isTokenSet, gridStats, cleanupMapLayers, showPhotoPopup]);
 
   // Highlight cell when clicked from sidebar
   useEffect(() => {
