@@ -205,12 +205,14 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId, filt
 
     if (displayPhotos.length === 0) return;
 
-    // Fit bounds to photos
-    const bounds = new mapboxgl.LngLatBounds();
-    displayPhotos.forEach((photo) => {
-      bounds.extend([photo.longitude, photo.latitude]);
-    });
-    map.current.fitBounds(bounds, { padding: 60, maxZoom: 15 });
+    // Fit bounds to photos (adminモードではポリゴン側でフィットさせる)
+    if (viewMode !== 'admin' || !adminStats || adminStats.cells.length === 0) {
+      const bounds = new mapboxgl.LngLatBounds();
+      displayPhotos.forEach((photo) => {
+        bounds.extend([photo.longitude, photo.latitude]);
+      });
+      map.current.fitBounds(bounds, { padding: 60, maxZoom: 15 });
+    }
 
     const sortedPhotos = [...displayPhotos].sort(
       (a, b) => a.timestamp.getTime() - b.timestamp.getTime()
@@ -538,6 +540,36 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId, filt
       const renderAdminPolygons = async () => {
         if (!map.current) return;
 
+        const fitToFeatureCollection = (
+          featureCollection: any,
+          opts: { padding: number; maxZoom: number }
+        ) => {
+          if (!map.current || !featureCollection?.features?.length) return;
+
+          const bounds = new mapboxgl.LngLatBounds();
+
+          const extendAny = (coords: any) => {
+            if (!coords) return;
+            if (Array.isArray(coords) && coords.length === 2 && typeof coords[0] === 'number' && typeof coords[1] === 'number') {
+              bounds.extend([coords[0], coords[1]]);
+              return;
+            }
+            if (Array.isArray(coords)) {
+              coords.forEach(extendAny);
+            }
+          };
+
+          featureCollection.features.forEach((f: any) => {
+            const geom = f?.geometry;
+            if (!geom) return;
+            extendAny(geom.coordinates);
+          });
+
+          if (!bounds.isEmpty()) {
+            map.current.fitBounds(bounds, { padding: opts.padding, duration: 800, maxZoom: opts.maxZoom });
+          }
+        };
+
         // For prefecture level, try to load GeoJSON polygons
         if (adminStats.level === 'prefecture') {
           const geoData = await loadPrefectureGeoJSON();
@@ -605,14 +637,8 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId, filt
                 },
               });
 
-              // Auto-fit to show all colored polygons
-              const bounds = new mapboxgl.LngLatBounds();
-              adminStats.cells.forEach(cell => {
-                bounds.extend([cell.centerLng, cell.centerLat]);
-              });
-              if (!bounds.isEmpty()) {
-                map.current.fitBounds(bounds, { padding: 60, duration: 800 });
-              }
+              // Auto-fit to show all colored polygons (ポリゴン実形状でフィット)
+              fitToFeatureCollection(prefectureFeatures, { padding: 80, maxZoom: 8 });
 
               map.current.on('click', 'admin-polygon-fill', (e) => {
                 if (!e.features || e.features.length === 0) return;
@@ -730,14 +756,8 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId, filt
                   },
                 });
 
-                // Auto-fit to show all colored polygons
-                const bounds = new mapboxgl.LngLatBounds();
-                adminStats.cells.forEach(cell => {
-                  bounds.extend([cell.centerLng, cell.centerLat]);
-                });
-                if (!bounds.isEmpty()) {
-                  map.current.fitBounds(bounds, { padding: 60, duration: 800 });
-                }
+                // Auto-fit to show all colored polygons (ポリゴン実形状でフィット)
+                fitToFeatureCollection(cityFeatures, { padding: 80, maxZoom: 12 });
 
                 map.current.on('click', 'admin-polygon-fill', (e) => {
                   if (!e.features || e.features.length === 0) return;
@@ -843,6 +863,18 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId, filt
           },
         });
 
+        // Auto-fit to show all colored areas (ポイントの場合)
+        if (adminStats.cells.length === 1) {
+          const only = adminStats.cells[0];
+          map.current.flyTo({ center: [only.centerLng, only.centerLat], zoom: 13, duration: 800 });
+        } else {
+          const bounds = new mapboxgl.LngLatBounds();
+          adminStats.cells.forEach(cell => bounds.extend([cell.centerLng, cell.centerLat]));
+          if (!bounds.isEmpty()) {
+            map.current.fitBounds(bounds, { padding: 80, duration: 800, maxZoom: 14 });
+          }
+        }
+
         map.current.on('click', 'admin-points', (e) => {
           if (!e.features || e.features.length === 0) return;
           const props = e.features[0].properties;
@@ -898,26 +930,6 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId, filt
     }
   }, [highlightedAreaId, viewMode, isTokenSet, mapLoaded, adminStats]);
 
-  // Auto-fit bounds when admin level changes
-  useEffect(() => {
-    if (!map.current || !isTokenSet || !mapLoaded || viewMode !== 'admin' || !adminStats || adminStats.cells.length === 0) return;
-
-    // Small delay to ensure layers are rendered
-    const timeoutId = setTimeout(() => {
-      if (!map.current) return;
-      
-      const bounds = new mapboxgl.LngLatBounds();
-      adminStats.cells.forEach(cell => {
-        bounds.extend([cell.centerLng, cell.centerLat]);
-      });
-      
-      if (!bounds.isEmpty()) {
-        map.current.fitBounds(bounds, { padding: 80, duration: 800 });
-      }
-    }, 300);
-
-    return () => clearTimeout(timeoutId);
-  }, [adminStats?.level, viewMode, isTokenSet, mapLoaded]);
 
   if (!isTokenSet) {
     return (
