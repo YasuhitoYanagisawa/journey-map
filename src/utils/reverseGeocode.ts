@@ -54,26 +54,27 @@ export async function reverseGeocode(
       id: f.id
     })));
 
-    // Process features in order of specificity (most specific first)
+    // First pass: collect all admin levels
+    let regionName: string | null = null;
+    let placeName: string | null = null;
+    let districtName: string | null = null;
+    let localityName: string | null = null;
+    let neighborhoodName: string | null = null;
+
     for (const feature of features) {
       const placeType = feature.place_type?.[0];
       const text = feature.text_ja || feature.text;
 
       if (placeType === 'region') {
-        // 都道府県 (prefecture)
-        prefecture = text;
+        regionName = text;
       } else if (placeType === 'district') {
-        // 区 (ward/district) - treat as city for Tokyo special wards
-        if (!city) city = text;
+        districtName = text;
       } else if (placeType === 'place') {
-        // 市町村 (city/town/village)
-        if (!city) city = text;
+        placeName = text;
       } else if (placeType === 'locality') {
-        // 地区・町丁目 (locality/neighborhood)
-        if (!town) town = text;
+        localityName = text;
       } else if (placeType === 'neighborhood') {
-        // 町丁目 (neighborhood)
-        if (!town) town = text;
+        neighborhoodName = text;
       }
     }
 
@@ -83,37 +84,45 @@ export async function reverseGeocode(
       const id = ctx.id || '';
       const text = ctx.text_ja || ctx.text;
 
-      if (id.startsWith('region.') && !prefecture) {
-        prefecture = text;
-      } else if (id.startsWith('district.') && !city) {
-        // District in context = ward/ku
-        city = text;
-      } else if (id.startsWith('place.') && !city) {
-        city = text;
-      } else if ((id.startsWith('locality.') || id.startsWith('neighborhood.')) && !town) {
-        town = text;
+      if (id.startsWith('region.') && !regionName) {
+        regionName = text;
+      } else if (id.startsWith('district.') && !districtName) {
+        districtName = text;
+      } else if (id.startsWith('place.') && !placeName) {
+        placeName = text;
+      } else if (id.startsWith('locality.') && !localityName) {
+        localityName = text;
+      } else if (id.startsWith('neighborhood.') && !neighborhoodName) {
+        neighborhoodName = text;
       }
     }
 
-    // Special handling for Tokyo 23 wards:
-    // If prefecture is 東京都 and city looks like a ward name (ends with 区),
-    // make sure it's in city field, not town
-    if (prefecture === '東京都' && town && town.endsWith('区') && !city) {
-      city = town;
-      town = null;
-    }
+    // Assign prefecture
+    prefecture = regionName;
 
-    // If city is same as prefecture (e.g., both 東京都), try to use district info
-    if (city === prefecture && town) {
-      // Look for a more specific city/ward in the context
-      for (const ctx of context) {
-        const id = ctx.id || '';
-        const text = ctx.text_ja || ctx.text;
-        if ((id.startsWith('district.') || id.startsWith('place.')) && text !== prefecture) {
-          city = text;
-          break;
-        }
-      }
+    // Special handling for Tokyo 23 wards and other designated cities:
+    // - If locality ends with 区, it's a ward (use as city)
+    // - If place is same as region (both 東京都), skip place and use locality as city
+    if (localityName && localityName.endsWith('区')) {
+      // This is a ward (ku) - treat as city level
+      city = localityName;
+      town = neighborhoodName;
+    } else if (districtName && districtName.endsWith('区')) {
+      // District is a ward
+      city = districtName;
+      town = localityName || neighborhoodName;
+    } else if (placeName && placeName !== regionName) {
+      // Normal city/town
+      city = placeName;
+      town = localityName || neighborhoodName;
+    } else if (placeName === regionName && localityName) {
+      // place is same as region (e.g., both 東京都), use locality as city
+      city = localityName;
+      town = neighborhoodName;
+    } else {
+      // Fallback
+      city = placeName || districtName || localityName;
+      town = neighborhoodName;
     }
 
     console.log('Parsed result:', { prefecture, city, town });
