@@ -898,6 +898,27 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId, filt
     }
   }, [highlightedAreaId, viewMode, isTokenSet, mapLoaded, adminStats]);
 
+  // Auto-fit bounds when admin level changes
+  useEffect(() => {
+    if (!map.current || !isTokenSet || !mapLoaded || viewMode !== 'admin' || !adminStats || adminStats.cells.length === 0) return;
+
+    // Small delay to ensure layers are rendered
+    const timeoutId = setTimeout(() => {
+      if (!map.current) return;
+      
+      const bounds = new mapboxgl.LngLatBounds();
+      adminStats.cells.forEach(cell => {
+        bounds.extend([cell.centerLng, cell.centerLat]);
+      });
+      
+      if (!bounds.isEmpty()) {
+        map.current.fitBounds(bounds, { padding: 80, duration: 800 });
+      }
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+  }, [adminStats?.level, viewMode, isTokenSet, mapLoaded]);
+
   if (!isTokenSet) {
     return (
       <motion.div
