@@ -31,7 +31,7 @@ const Index = () => {
 
   // Get filtered photos based on date filter
   const displayPhotos = useMemo(() => {
-    if (!filteredIndices) return photos;
+    if (filteredIndices === null) return photos;
     return filteredIndices.map(i => photos[i]).filter(Boolean);
   }, [photos, filteredIndices]);
 
@@ -230,7 +230,7 @@ const Index = () => {
                     onCellClick={setHighlightedCellId}
                   />
                 )}
-                {viewMode !== 'grid' && <PhotoTimeline photos={photos} />}
+                {viewMode !== 'grid' && <PhotoTimeline photos={displayPhotos} />}
               </motion.div>
             </motion.div>
           )}

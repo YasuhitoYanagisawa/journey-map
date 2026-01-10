@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { format, startOfDay, startOfWeek, startOfMonth, endOfDay, endOfWeek, endOfMonth, isWithinInterval, subDays, subWeeks, subMonths } from 'date-fns';
 import { ja } from 'date-fns/locale';
 import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -62,7 +62,7 @@ const DateFilter = ({ photos, onFilterChange }: DateFilterProps) => {
   }, [mode, offset, latestDate]);
 
   // Filter photos and notify parent
-  useMemo(() => {
+  useEffect(() => {
     if (mode === 'all' || !currentRange) {
       onFilterChange(null);
       return;
@@ -74,7 +74,8 @@ const DateFilter = ({ photos, onFilterChange }: DateFilterProps) => {
         indices.push(index);
       }
     });
-    onFilterChange(indices.length > 0 ? indices : null);
+    // Always return the indices array (even if empty) when filtering is active
+    onFilterChange(indices);
   }, [photos, mode, currentRange, onFilterChange]);
 
   // Count photos in current range
