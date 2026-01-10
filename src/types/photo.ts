@@ -17,4 +17,4 @@ export interface DayStats {
   locations: PhotoLocation[];
 }
 
-export type ViewMode = 'markers' | 'heatmap' | 'route';
+export type ViewMode = 'markers' | 'heatmap' | 'route' | 'grid';

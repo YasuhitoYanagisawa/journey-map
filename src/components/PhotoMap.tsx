@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { PhotoLocation, ViewMode } from '@/types/photo';
@@ -6,18 +6,32 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
 import { Key } from 'lucide-react';
+import { buildPhotoGrid, getGridCellColor, GridStats } from '@/utils/gridCalculator';
 
 interface PhotoMapProps {
   photos: PhotoLocation[];
   viewMode: ViewMode;
+  onGridStatsChange?: (stats: GridStats | null) => void;
+  highlightedCellId?: string | null;
 }
 
-const PhotoMap = ({ photos, viewMode }: PhotoMapProps) => {
+const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId }: PhotoMapProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const markersRef = useRef<mapboxgl.Marker[]>([]);
   const [mapboxToken, setMapboxToken] = useState<string>('');
   const [isTokenSet, setIsTokenSet] = useState(false);
+
+  // Calculate grid stats when in grid mode
+  const gridStats = useMemo(() => {
+    if (viewMode !== 'grid' || photos.length === 0) return null;
+    return buildPhotoGrid(photos, 500);
+  }, [photos, viewMode]);
+
+  // Notify parent of grid stats
+  useEffect(() => {
+    onGridStatsChange?.(gridStats);
+  }, [gridStats, onGridStatsChange]);
 
   const handleSetToken = () => {
     if (mapboxToken.trim()) {
@@ -50,15 +64,21 @@ const PhotoMap = ({ photos, viewMode }: PhotoMapProps) => {
     };
   }, [isTokenSet, mapboxToken]);
 
-  // Update markers/visualization
-  useEffect(() => {
-    if (!map.current || !isTokenSet || photos.length === 0) return;
+  // Helper to clean up all map layers/sources
+  const cleanupMapLayers = () => {
+    if (!map.current) return;
 
-    // Clear existing markers
-    markersRef.current.forEach(marker => marker.remove());
-    markersRef.current = [];
+    // Remove grid layers
+    ['grid-fill', 'grid-outline', 'grid-label'].forEach((layerId) => {
+      if (map.current!.getLayer(layerId)) {
+        map.current!.removeLayer(layerId);
+      }
+    });
+    if (map.current.getSource('grid')) {
+      map.current.removeSource('grid');
+    }
 
-    // Remove existing layers
+    // Remove photo layers
     if (map.current.getSource('photos')) {
       if (map.current.getLayer('photo-heat')) {
         map.current.removeLayer('photo-heat');
@@ -69,24 +89,36 @@ const PhotoMap = ({ photos, viewMode }: PhotoMapProps) => {
       map.current.removeSource('photos');
     }
 
+    // Remove route layers
     if (map.current.getSource('route')) {
       if (map.current.getLayer('route-line')) {
         map.current.removeLayer('route-line');
       }
       map.current.removeSource('route');
     }
+  };
+
+  // Update markers/visualization
+  useEffect(() => {
+    if (!map.current || !isTokenSet || photos.length === 0) return;
+
+    // Clear existing markers
+    markersRef.current.forEach((marker) => marker.remove());
+    markersRef.current = [];
+
+    cleanupMapLayers();
 
     // Fit bounds to photos
     if (photos.length > 0) {
       const bounds = new mapboxgl.LngLatBounds();
-      photos.forEach(photo => {
+      photos.forEach((photo) => {
         bounds.extend([photo.longitude, photo.latitude]);
       });
       map.current.fitBounds(bounds, { padding: 60, maxZoom: 15 });
     }
 
-    const sortedPhotos = [...photos].sort((a, b) => 
-      a.timestamp.getTime() - b.timestamp.getTime()
+    const sortedPhotos = [...photos].sort(
+      (a, b) => a.timestamp.getTime() - b.timestamp.getTime()
     );
 
     if (viewMode === 'markers') {
@@ -106,8 +138,8 @@ const PhotoMap = ({ photos, viewMode }: PhotoMapProps) => {
           cursor: pointer;
           transition: transform 0.2s;
         `;
-        el.onmouseenter = () => el.style.transform = 'scale(1.15)';
-        el.onmouseleave = () => el.style.transform = 'scale(1)';
+        el.onmouseenter = () => (el.style.transform = 'scale(1.15)');
+        el.onmouseleave = () => (el.style.transform = 'scale(1)');
 
         const popup = new mapboxgl.Popup({ offset: 25 }).setHTML(`
           <div style="padding: 8px; color: #333;">
@@ -135,15 +167,15 @@ const PhotoMap = ({ photos, viewMode }: PhotoMapProps) => {
         type: 'geojson',
         data: {
           type: 'FeatureCollection',
-          features: photos.map(photo => ({
+          features: photos.map((photo) => ({
             type: 'Feature',
             properties: {},
             geometry: {
               type: 'Point',
-              coordinates: [photo.longitude, photo.latitude]
-            }
-          }))
-        }
+              coordinates: [photo.longitude, photo.latitude],
+            },
+          })),
+        },
       });
 
       map.current.addLayer({
@@ -157,20 +189,29 @@ const PhotoMap = ({ photos, viewMode }: PhotoMapProps) => {
             'interpolate',
             ['linear'],
             ['heatmap-density'],
-            0, 'rgba(0, 0, 0, 0)',
-            0.2, 'hsl(210, 60%, 50%)',
-            0.4, 'hsl(180, 70%, 50%)',
-            0.6, 'hsl(60, 80%, 55%)',
-            0.8, 'hsl(36, 100%, 50%)',
-            1, 'hsl(0, 80%, 55%)'
+            0,
+            'rgba(0, 0, 0, 0)',
+            0.2,
+            'hsl(210, 60%, 50%)',
+            0.4,
+            'hsl(180, 70%, 50%)',
+            0.6,
+            'hsl(60, 80%, 55%)',
+            0.8,
+            'hsl(36, 100%, 50%)',
+            1,
+            'hsl(0, 80%, 55%)',
           ],
           'heatmap-radius': 40,
-          'heatmap-opacity': 0.8
-        }
+          'heatmap-opacity': 0.8,
+        },
       });
     } else if (viewMode === 'route') {
       // Add route line
-      const coordinates = sortedPhotos.map(photo => [photo.longitude, photo.latitude]);
+      const coordinates = sortedPhotos.map((photo) => [
+        photo.longitude,
+        photo.latitude,
+      ]);
 
       map.current.addSource('route', {
         type: 'geojson',
@@ -179,9 +220,9 @@ const PhotoMap = ({ photos, viewMode }: PhotoMapProps) => {
           properties: {},
           geometry: {
             type: 'LineString',
-            coordinates
-          }
-        }
+            coordinates,
+          },
+        },
       });
 
       map.current.addLayer({
@@ -190,13 +231,13 @@ const PhotoMap = ({ photos, viewMode }: PhotoMapProps) => {
         source: 'route',
         layout: {
           'line-join': 'round',
-          'line-cap': 'round'
+          'line-cap': 'round',
         },
         paint: {
           'line-color': 'hsl(24, 95%, 53%)',
           'line-width': 4,
-          'line-opacity': 0.9
-        }
+          'line-opacity': 0.9,
+        },
       });
 
       // Add start/end markers
@@ -234,8 +275,93 @@ const PhotoMap = ({ photos, viewMode }: PhotoMapProps) => {
           markersRef.current.push(new mapboxgl.Marker(endEl));
         }
       }
+    } else if (viewMode === 'grid' && gridStats) {
+      // Add grid cells as fill polygons
+      const features = gridStats.cells.map((cell) => ({
+        type: 'Feature' as const,
+        properties: {
+          id: cell.id,
+          count: cell.count,
+          intensity: cell.intensity,
+          color: getGridCellColor(cell.intensity),
+        },
+        geometry: {
+          type: 'Polygon' as const,
+          coordinates: [
+            [
+              [cell.bounds.minLng, cell.bounds.minLat],
+              [cell.bounds.maxLng, cell.bounds.minLat],
+              [cell.bounds.maxLng, cell.bounds.maxLat],
+              [cell.bounds.minLng, cell.bounds.maxLat],
+              [cell.bounds.minLng, cell.bounds.minLat],
+            ],
+          ],
+        },
+      }));
+
+      map.current.addSource('grid', {
+        type: 'geojson',
+        data: {
+          type: 'FeatureCollection',
+          features,
+        },
+      });
+
+      // Fill layer
+      map.current.addLayer({
+        id: 'grid-fill',
+        type: 'fill',
+        source: 'grid',
+        paint: {
+          'fill-color': ['get', 'color'],
+          'fill-opacity': 0.55,
+        },
+      });
+
+      // Outline layer
+      map.current.addLayer({
+        id: 'grid-outline',
+        type: 'line',
+        source: 'grid',
+        paint: {
+          'line-color': '#fff',
+          'line-width': 1,
+          'line-opacity': 0.4,
+        },
+      });
+
+      // Label layer (count)
+      map.current.addLayer({
+        id: 'grid-label',
+        type: 'symbol',
+        source: 'grid',
+        layout: {
+          'text-field': ['get', 'count'],
+          'text-size': 12,
+          'text-font': ['DIN Pro Medium', 'Arial Unicode MS Bold'],
+        },
+        paint: {
+          'text-color': '#fff',
+          'text-halo-color': 'rgba(0,0,0,0.6)',
+          'text-halo-width': 1,
+        },
+      });
     }
-  }, [photos, viewMode, isTokenSet]);
+  }, [photos, viewMode, isTokenSet, gridStats]);
+
+  // Highlight cell when clicked from sidebar
+  useEffect(() => {
+    if (!map.current || !isTokenSet || viewMode !== 'grid' || !gridStats) return;
+
+    const cell = gridStats.cells.find((c) => c.id === highlightedCellId);
+    if (cell) {
+      map.current.flyTo({
+        center: [cell.centerLng, cell.centerLat],
+        zoom: 15,
+        duration: 800,
+      });
+    }
+  }, [highlightedCellId, viewMode, isTokenSet, gridStats]);
 
   if (!isTokenSet) {
     return (

@@ -1,19 +1,23 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MapPin, Camera } from 'lucide-react';
 import PhotoDropzone from '@/components/PhotoDropzone';
 import PhotoMap from '@/components/PhotoMap';
 import StatsPanel from '@/components/StatsPanel';
 import PhotoTimeline from '@/components/PhotoTimeline';
+import GridStatsPanel from '@/components/GridStatsPanel';
 import ViewModeToggle from '@/components/ViewModeToggle';
 import { PhotoLocation, ViewMode, DayStats } from '@/types/photo';
 import { calculateDayStats } from '@/utils/statsCalculator';
+import { GridStats } from '@/utils/gridCalculator';
 
 const Index = () => {
   const [photos, setPhotos] = useState<PhotoLocation[]>([]);
   const [viewMode, setViewMode] = useState<ViewMode>('markers');
   const [stats, setStats] = useState<DayStats | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [gridStats, setGridStats] = useState<GridStats | null>(null);
+  const [highlightedCellId, setHighlightedCellId] = useState<string | null>(null);
 
   const handlePhotosLoaded = (newPhotos: PhotoLocation[]) => {
     setIsLoading(true);
@@ -111,13 +115,14 @@ const Index = () => {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.8 }}
-                className="mt-12 grid grid-cols-3 gap-8 text-center"
+                className="mt-12 grid grid-cols-4 gap-6 text-center"
               >
                 {[
                   { icon: '📍', label: 'マーカー表示' },
                   { icon: '🔥', label: 'ヒートマップ' },
                   { icon: '🛤️', label: 'ルート表示' },
-                ].map((feature, i) => (
+                  { icon: '🗺️', label: 'グリッド統計' },
+                ].map((feature) => (
                   <div key={feature.label} className="space-y-2">
                     <span className="text-3xl">{feature.icon}</span>
                     <p className="text-sm text-muted-foreground">{feature.label}</p>
@@ -168,7 +173,12 @@ const Index = () => {
                   </label>
                 </div>
 
-                <PhotoMap photos={photos} viewMode={viewMode} />
+                <PhotoMap
+                  photos={photos}
+                  viewMode={viewMode}
+                  onGridStatsChange={setGridStats}
+                  highlightedCellId={highlightedCellId}
+                />
               </div>
 
               {/* Sidebar */}
@@ -179,7 +189,13 @@ const Index = () => {
                 className="w-80 p-4 space-y-4 overflow-y-auto"
               >
                 {stats && <StatsPanel stats={stats} />}
-                <PhotoTimeline photos={photos} />
+                {viewMode === 'grid' && gridStats && (
+                  <GridStatsPanel
+                    gridStats={gridStats}
+                    onCellClick={setHighlightedCellId}
+                  />
+                )}
+                {viewMode !== 'grid' && <PhotoTimeline photos={photos} />}
               </motion.div>
             </motion.div>
           )}
