@@ -86,8 +86,15 @@ export async function reverseGeocode(
     const extractChomeFromAddress = (s: string | null): string | null => {
       if (!s) return null;
       const normalized = normalizeChome(s);
-      const m = normalized.match(/([^,、]+?(?:\d+|[一二三四五六七八九十]+)丁目)/);
-      return m?.[1] ? normalizeChome(m[1]) : null;
+      // Match patterns like "弥生町3丁目" or "松庵３丁目"
+      // Look for the last occurrence of a pattern: [町名][数字]丁目
+      const m = normalized.match(/([^\s,、区市町村]+?(?:\d+|[一二三四五六七八九十]+)丁目)(?:[^\d丁]|$)/);
+      if (m?.[1]) {
+        return normalizeChome(m[1]);
+      }
+      // Fallback: just get the part with 丁目
+      const m2 = normalized.match(/([ぁ-んァ-ヶー一-龥a-zA-Z]+\d+丁目)/);
+      return m2?.[1] ? normalizeChome(m2[1]) : null;
     };
 
     // Debug: Log API response for understanding structure
