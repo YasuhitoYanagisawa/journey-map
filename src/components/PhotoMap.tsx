@@ -906,17 +906,15 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId, filt
                   source: 'admin-polygon-labels-src',
                   layout: {
                     'text-field': ['concat', ['get', 'name'], '\n', ['get', 'count'], '枚'],
-                    'text-size': 12,
+                    'text-size': 11,
                     'text-font': ['DIN Pro Bold', 'Arial Unicode MS Bold'],
-                    'text-allow-overlap': false,
-                    'text-ignore-placement': false,
-                    'text-optional': true,
-                    'text-padding': 8,
+                    'text-allow-overlap': true,
+                    'symbol-sort-key': ['*', -1, ['get', 'count']],
                   },
                   paint: {
                     'text-color': '#fff',
-                    'text-halo-color': 'rgba(0,0,0,0.8)',
-                    'text-halo-width': 2,
+                    'text-halo-color': 'rgba(0,0,0,0.9)',
+                    'text-halo-width': 2.5,
                   },
                 });
 
