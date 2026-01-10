@@ -55,44 +55,99 @@ function getTimestamp(exifData: any): Date {
   return new Date();
 }
 
-export function parsePhotoEXIF(file: File): Promise<PhotoLocation | null> {
-  return new Promise((resolve) => {
+type ParseMultiplePhotosOptions = {
+  /** Number of photos to parse in parallel. Lower = smoother UI, higher = faster. */
+  concurrency?: number;
+  /** Yield to the main thread every N processed photos to keep the UI responsive. */
+  yieldEvery?: number;
+  /** Progress callback (processed, total). */
+  onProgress?: (processed: number, total: number) => void;
+  /** Abort parsing (used for cancel). */
+  signal?: AbortSignal;
+};
+
+function readFileAsArrayBuffer(file: File): Promise<ArrayBuffer> {
+  return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    
-    reader.onload = function(e) {
-      const img = new Image();
-      img.onload = function() {
-        EXIF.getData(img as any, function(this: any) {
-          const exifData = EXIF.getAllTags(this);
-          const coords = getGPSCoordinates(exifData);
-          
-          if (!coords) {
-            resolve(null);
-            return;
-          }
-
-          const timestamp = getTimestamp(exifData);
-          const thumbnailUrl = URL.createObjectURL(file);
-
-          resolve({
-            id: `${file.name}-${Date.now()}`,
-            filename: file.name,
-            latitude: coords.latitude,
-            longitude: coords.longitude,
-            timestamp,
-            thumbnailUrl,
-            originalFile: file,
-          });
-        });
-      };
-      img.src = e.target?.result as string;
-    };
-    
-    reader.readAsDataURL(file);
+    reader.onerror = () => reject(reader.error);
+    reader.onload = () => resolve(reader.result as ArrayBuffer);
+    reader.readAsArrayBuffer(file);
   });
 }
 
-export async function parseMultiplePhotos(files: File[]): Promise<PhotoLocation[]> {
-  const results = await Promise.all(files.map(parsePhotoEXIF));
-  return results.filter((result): result is PhotoLocation => result !== null);
+function yieldToMainThread(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0));
 }
+
+export async function parsePhotoEXIF(file: File): Promise<PhotoLocation | null> {
+  try {
+    const buffer = await readFileAsArrayBuffer(file);
+
+    // Fast path: parse EXIF directly from JPEG binary (no Image decode / no base64 DataURL)
+    const exifData = EXIF.readFromBinaryFile(buffer);
+    if (!exifData) return null;
+
+    const coords = getGPSCoordinates(exifData);
+    if (!coords) return null;
+
+    const timestamp = getTimestamp(exifData);
+    // Use object URL as thumbnail (cheap, avoids base64)
+    const thumbnailUrl = URL.createObjectURL(file);
+
+    const id = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID()
+      : `${file.name}-${Date.now()}`;
+
+    return {
+      id,
+      filename: file.name,
+      latitude: coords.latitude,
+      longitude: coords.longitude,
+      timestamp,
+      thumbnailUrl,
+      originalFile: file,
+    };
+  } catch (error) {
+    console.warn('[EXIF] parse failed:', file.name, error);
+    return null;
+  }
+}
+
+export async function parseMultiplePhotos(
+  files: File[],
+  options: ParseMultiplePhotosOptions = {}
+): Promise<PhotoLocation[]> {
+  const total = files.length;
+  if (total === 0) return [];
+
+  const concurrency = Math.max(1, Math.min(options.concurrency ?? 2, 8));
+  const yieldEvery = Math.max(1, options.yieldEvery ?? 5);
+
+  let processed = 0;
+  options.onProgress?.(0, total);
+
+  const results: Array<PhotoLocation | null | undefined> = new Array(total);
+  let index = 0;
+
+  const worker = async () => {
+    while (true) {
+      if (options.signal?.aborted) return;
+
+      const current = index++;
+      if (current >= total) return;
+
+      results[current] = await parsePhotoEXIF(files[current]);
+      processed += 1;
+      options.onProgress?.(processed, total);
+
+      if (processed % yieldEvery === 0) {
+        await yieldToMainThread();
+      }
+    }
+  };
+
+  await Promise.all(Array.from({ length: concurrency }, worker));
+
+  return results.filter((r): r is PhotoLocation => r != null);
+}
+
