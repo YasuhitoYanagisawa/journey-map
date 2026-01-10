@@ -222,6 +222,16 @@ const Auth = () => {
             {isLogin ? '新規登録' : 'ログイン'}
           </button>
         </p>
+
+        {/* Back to home */}
+        <p className="text-center mt-4 text-sm">
+          <button
+            onClick={() => navigate('/')}
+            className="text-muted-foreground hover:text-foreground transition-colors"
+          >
+            ← ログインせずに使う
+          </button>
+        </p>
       </motion.div>
     </div>
   );
