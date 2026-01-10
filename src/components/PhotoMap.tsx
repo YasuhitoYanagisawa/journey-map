@@ -147,12 +147,20 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId, filt
 
     // Remove admin polygon layers
     if (map.current.getSource('admin-polygons')) {
-      ['admin-polygon-fill', 'admin-polygon-outline', 'admin-polygon-labels'].forEach((layerId) => {
+      ['admin-polygon-fill', 'admin-polygon-outline'].forEach((layerId) => {
         if (map.current!.getLayer(layerId)) {
           map.current!.removeLayer(layerId);
         }
       });
       map.current.removeSource('admin-polygons');
+    }
+    
+    // Remove admin label layers (separate point source)
+    if (map.current.getSource('admin-polygon-labels-src')) {
+      if (map.current.getLayer('admin-polygon-labels')) {
+        map.current.removeLayer('admin-polygon-labels');
+      }
+      map.current.removeSource('admin-polygon-labels-src');
     }
   }, []);
 
@@ -618,17 +626,25 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId, filt
                 },
               });
 
-              // Add labels on polygons
+              // Add labels as separate point source (1 label per area)
+              const labelPoints = {
+                type: 'FeatureCollection' as const,
+                features: adminStats.cells.map(cell => ({
+                  type: 'Feature' as const,
+                  properties: { name: cell.name, count: cell.count },
+                  geometry: { type: 'Point' as const, coordinates: [cell.centerLng, cell.centerLat] },
+                })),
+              };
+              map.current.addSource('admin-polygon-labels-src', { type: 'geojson', data: labelPoints });
               map.current.addLayer({
                 id: 'admin-polygon-labels',
                 type: 'symbol',
-                source: 'admin-polygons',
+                source: 'admin-polygon-labels-src',
                 layout: {
                   'text-field': ['concat', ['get', 'name'], '\n', ['get', 'count'], '枚の写真'],
                   'text-size': 14,
                   'text-font': ['DIN Pro Bold', 'Arial Unicode MS Bold'],
-                  'text-allow-overlap': false,
-                  'text-ignore-placement': false,
+                  'text-allow-overlap': true,
                 },
                 paint: {
                   'text-color': '#fff',
@@ -737,17 +753,25 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId, filt
                   },
                 });
 
-                // Add labels on polygons
+                // Add labels as separate point source (1 label per area)
+                const labelPoints = {
+                  type: 'FeatureCollection' as const,
+                  features: adminStats.cells.map(cell => ({
+                    type: 'Feature' as const,
+                    properties: { name: cell.name, count: cell.count },
+                    geometry: { type: 'Point' as const, coordinates: [cell.centerLng, cell.centerLat] },
+                  })),
+                };
+                map.current.addSource('admin-polygon-labels-src', { type: 'geojson', data: labelPoints });
                 map.current.addLayer({
                   id: 'admin-polygon-labels',
                   type: 'symbol',
-                  source: 'admin-polygons',
+                  source: 'admin-polygon-labels-src',
                   layout: {
                     'text-field': ['concat', ['get', 'name'], '\n', ['get', 'count'], '枚の写真'],
                     'text-size': 13,
                     'text-font': ['DIN Pro Bold', 'Arial Unicode MS Bold'],
-                    'text-allow-overlap': false,
-                    'text-ignore-placement': false,
+                    'text-allow-overlap': true,
                   },
                   paint: {
                     'text-color': '#fff',
