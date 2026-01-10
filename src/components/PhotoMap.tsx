@@ -546,7 +546,7 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId, filt
     } else if (viewMode === 'admin' && adminStats && adminStats.cells.length > 0) {
       // Load GeoJSON and render polygons for prefecture/city levels
       const renderAdminPolygons = async () => {
-        if (!map.current) return;
+        if (!map.current || !map.current.isStyleLoaded()) return;
 
         const fitToFeatureCollection = (
           featureCollection: any,
