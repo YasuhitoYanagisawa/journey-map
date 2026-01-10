@@ -626,14 +626,36 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId, filt
                 },
               });
 
-              // Add labels as separate point source (1 label per area)
+              // Add labels using polygon centroids for accurate positioning
+              const centroidOfGeometry = (geometry: any): { lng: number; lat: number } => {
+                let sumLng = 0, sumLat = 0, count = 0;
+                const walk = (node: any) => {
+                  if (!node) return;
+                  if (Array.isArray(node) && node.length >= 2 && typeof node[0] === 'number' && typeof node[1] === 'number') {
+                    sumLng += node[0];
+                    sumLat += node[1];
+                    count += 1;
+                    return;
+                  }
+                  if (Array.isArray(node)) {
+                    for (const child of node) walk(child);
+                  }
+                };
+                walk(geometry.coordinates);
+                if (count === 0) return { lng: 0, lat: 0 };
+                return { lng: sumLng / count, lat: sumLat / count };
+              };
+
               const labelPoints = {
                 type: 'FeatureCollection' as const,
-                features: adminStats.cells.map(cell => ({
-                  type: 'Feature' as const,
-                  properties: { name: cell.name, count: cell.count },
-                  geometry: { type: 'Point' as const, coordinates: [cell.centerLng, cell.centerLat] },
-                })),
+                features: prefectureFeatures.features.map(feature => {
+                  const centroid = centroidOfGeometry(feature.geometry);
+                  return {
+                    type: 'Feature' as const,
+                    properties: { name: feature.properties?.name, count: feature.properties?.count },
+                    geometry: { type: 'Point' as const, coordinates: [centroid.lng, centroid.lat] },
+                  };
+                }),
               };
               map.current.addSource('admin-polygon-labels-src', { type: 'geojson', data: labelPoints });
               map.current.addLayer({
@@ -756,14 +778,36 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId, filt
                   },
                 });
 
-                // Add labels as separate point source (1 label per area)
+                // Add labels using polygon centroids for accurate positioning
+                const centroidOfGeometry = (geometry: any): { lng: number; lat: number } => {
+                  let sumLng = 0, sumLat = 0, count = 0;
+                  const walk = (node: any) => {
+                    if (!node) return;
+                    if (Array.isArray(node) && node.length >= 2 && typeof node[0] === 'number' && typeof node[1] === 'number') {
+                      sumLng += node[0];
+                      sumLat += node[1];
+                      count += 1;
+                      return;
+                    }
+                    if (Array.isArray(node)) {
+                      for (const child of node) walk(child);
+                    }
+                  };
+                  walk(geometry.coordinates);
+                  if (count === 0) return { lng: 0, lat: 0 };
+                  return { lng: sumLng / count, lat: sumLat / count };
+                };
+
                 const labelPoints = {
                   type: 'FeatureCollection' as const,
-                  features: adminStats.cells.map(cell => ({
-                    type: 'Feature' as const,
-                    properties: { name: cell.name, count: cell.count },
-                    geometry: { type: 'Point' as const, coordinates: [cell.centerLng, cell.centerLat] },
-                  })),
+                  features: cityFeatures.features.map(feature => {
+                    const centroid = centroidOfGeometry(feature.geometry);
+                    return {
+                      type: 'Feature' as const,
+                      properties: { name: feature.properties?.matchedName || feature.properties?.name, count: feature.properties?.count },
+                      geometry: { type: 'Point' as const, coordinates: [centroid.lng, centroid.lat] },
+                    };
+                  }),
                 };
                 map.current.addSource('admin-polygon-labels-src', { type: 'geojson', data: labelPoints });
                 map.current.addLayer({
@@ -890,14 +934,36 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId, filt
                   },
                 });
 
-                // Add labels as separate point source (1 label per area)
+                // Add labels using polygon centroids for accurate positioning
+                const centroidOfGeometry = (geometry: any): { lng: number; lat: number } => {
+                  let sumLng = 0, sumLat = 0, count = 0;
+                  const walk = (node: any) => {
+                    if (!node) return;
+                    if (Array.isArray(node) && node.length >= 2 && typeof node[0] === 'number' && typeof node[1] === 'number') {
+                      sumLng += node[0];
+                      sumLat += node[1];
+                      count += 1;
+                      return;
+                    }
+                    if (Array.isArray(node)) {
+                      for (const child of node) walk(child);
+                    }
+                  };
+                  walk(geometry.coordinates);
+                  if (count === 0) return { lng: 0, lat: 0 };
+                  return { lng: sumLng / count, lat: sumLat / count };
+                };
+
                 const labelPoints = {
                   type: 'FeatureCollection' as const,
-                  features: adminStats.cells.map(cell => ({
-                    type: 'Feature' as const,
-                    properties: { name: cell.name, count: cell.count },
-                    geometry: { type: 'Point' as const, coordinates: [cell.centerLng, cell.centerLat] },
-                  })),
+                  features: townFeatures.features.map(feature => {
+                    const centroid = centroidOfGeometry(feature.geometry);
+                    return {
+                      type: 'Feature' as const,
+                      properties: { name: feature.properties?.matchedName || feature.properties?.name, count: feature.properties?.count },
+                      geometry: { type: 'Point' as const, coordinates: [centroid.lng, centroid.lat] },
+                    };
+                  }),
                 };
                 map.current.addSource('admin-polygon-labels-src', { type: 'geojson', data: labelPoints });
                 map.current.addLayer({
