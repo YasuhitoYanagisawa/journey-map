@@ -643,8 +643,13 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId, filt
             }
           });
 
+          console.log('City level - prefectures with photos:', Array.from(prefecturesWithPhotos));
+          console.log('City level - adminStats.cells:', adminStats.cells.map(c => c.name));
+
           if (prefecturesWithPhotos.size > 0) {
             const geoData = await loadCityGeoJSON(Array.from(prefecturesWithPhotos));
+            
+            console.log('City GeoJSON loaded:', geoData ? `${geoData.features.length} features` : 'null');
             
             if (geoData && map.current) {
               const cityCounts = new Map<string, { count: number; intensity: number }>();
@@ -652,7 +657,11 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId, filt
                 cityCounts.set(cell.name, { count: cell.count, intensity: cell.intensity });
               });
 
+              console.log('City counts:', Array.from(cityCounts.entries()));
+
               const cityFeatures = createCityFeatures(geoData, cityCounts);
+
+              console.log('City features matched:', cityFeatures.features.length);
 
               if (cityFeatures.features.length > 0) {
                 map.current.addSource('admin-polygons', {
