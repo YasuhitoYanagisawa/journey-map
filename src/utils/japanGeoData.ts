@@ -198,44 +198,107 @@ export function getTownName(feature: Feature): string | null {
  */
 export function createTownFeatures(
   geoData: FeatureCollection,
-  townCounts: Map<string, { count: number; intensity: number }>
+  townCounts: Map<string, { count: number; intensity: number }>,
+  townCenters?: Map<string, { lat: number; lng: number }>
 ): FeatureCollection<Polygon | MultiPolygon> {
-  const matchedFeatures: Feature<Polygon | MultiPolygon>[] = [];
-  const matched = new Set<string>();
+  type Target = {
+    key: string;
+    normalizedKey: string;
+    data: { count: number; intensity: number };
+    center: { lat: number; lng: number } | null;
+    bestFeature: Feature<Polygon | MultiPolygon> | null;
+    bestTownName: string | null;
+    bestDistanceSq: number;
+  };
 
-  for (const feature of geoData.features) {
-    const townName = getTownName(feature);
+  const isNameMatch = (a: string, b: string) => a === b || a.includes(b) || b.includes(a);
+
+  const centroidOfGeometry = (geometry: Polygon | MultiPolygon): { lng: number; lat: number } => {
+    let sumLng = 0;
+    let sumLat = 0;
+    let count = 0;
+
+    const walk = (node: any) => {
+      if (!node) return;
+      if (Array.isArray(node) && node.length >= 2 && typeof node[0] === 'number' && typeof node[1] === 'number') {
+        sumLng += node[0];
+        sumLat += node[1];
+        count += 1;
+        return;
+      }
+      if (Array.isArray(node)) {
+        for (const child of node) walk(child);
+      }
+    };
+
+    walk(geometry.coordinates);
+
+    if (count === 0) return { lng: 0, lat: 0 };
+    return { lng: sumLng / count, lat: sumLat / count };
+  };
+
+  const distanceSq = (a: { lat: number; lng: number }, b: { lat: number; lng: number }) => {
+    const dx = a.lng - b.lng;
+    const dy = a.lat - b.lat;
+    return dx * dx + dy * dy;
+  };
+
+  const targets: Target[] = Array.from(townCounts.entries()).map(([key, data]) => ({
+    key,
+    normalizedKey: normalizeTownName(key),
+    data,
+    center: townCenters?.get(key) ?? null,
+    bestFeature: null,
+    bestTownName: null,
+    bestDistanceSq: Number.POSITIVE_INFINITY,
+  }));
+
+  for (const rawFeature of geoData.features) {
+    const townName = getTownName(rawFeature);
     if (!townName) continue;
 
+    const geometry = rawFeature.geometry;
+    if (!geometry || (geometry.type !== 'Polygon' && geometry.type !== 'MultiPolygon')) continue;
+
     const normalizedTownName = normalizeTownName(townName);
-    
-    for (const [countKey, data] of townCounts.entries()) {
-      if (matched.has(countKey)) continue;
-      
-      const normalizedCountKey = normalizeTownName(countKey);
-      
-      // Match town names (handle variations)
-      if (normalizedTownName === normalizedCountKey || 
-          normalizedTownName.includes(normalizedCountKey) || 
-          normalizedCountKey.includes(normalizedTownName)) {
-        
-        const geometry = feature.geometry;
-        if (geometry.type === 'Polygon' || geometry.type === 'MultiPolygon') {
-          matchedFeatures.push({
-            type: 'Feature',
-            properties: {
-              name: townName,
-              matchedName: countKey,
-              count: data.count,
-              intensity: data.intensity,
-            },
-            geometry: geometry as Polygon | MultiPolygon,
-          });
-          matched.add(countKey);
-        }
-        break;
+    const centroid = centroidOfGeometry(geometry as Polygon | MultiPolygon);
+
+    for (const target of targets) {
+      if (!isNameMatch(normalizedTownName, target.normalizedKey)) continue;
+
+      // If we have centers, prefer the polygon whose centroid is nearest to photo cluster center.
+      // This avoids matching the wrong "弥生町3丁目" in a different ward.
+      const d2 = target.center ? distanceSq(target.center, centroid) : 0;
+
+      if (!target.bestFeature) {
+        target.bestFeature = rawFeature as Feature<Polygon | MultiPolygon>;
+        target.bestTownName = townName;
+        target.bestDistanceSq = d2;
+        continue;
+      }
+
+      if (target.center && d2 < target.bestDistanceSq) {
+        target.bestFeature = rawFeature as Feature<Polygon | MultiPolygon>;
+        target.bestTownName = townName;
+        target.bestDistanceSq = d2;
       }
     }
+  }
+
+  const matchedFeatures: Feature<Polygon | MultiPolygon>[] = [];
+  for (const t of targets) {
+    if (!t.bestFeature) continue;
+
+    matchedFeatures.push({
+      type: 'Feature',
+      properties: {
+        name: t.bestTownName ?? t.key,
+        matchedName: t.key,
+        count: t.data.count,
+        intensity: t.data.intensity,
+      },
+      geometry: t.bestFeature.geometry as Polygon | MultiPolygon,
+    });
   }
 
   return {

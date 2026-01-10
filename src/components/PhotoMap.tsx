@@ -836,13 +836,15 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId, filt
             
             if (geoData && map.current) {
               const townCounts = new Map<string, { count: number; intensity: number }>();
+              const townCenters = new Map<string, { lat: number; lng: number }>();
               adminStats.cells.forEach(cell => {
                 townCounts.set(cell.name, { count: cell.count, intensity: cell.intensity });
+                townCenters.set(cell.name, { lat: cell.centerLat, lng: cell.centerLng });
               });
 
               console.log('Town counts:', Array.from(townCounts.entries()));
 
-              const townFeatures = createTownFeatures(geoData, townCounts);
+              const townFeatures = createTownFeatures(geoData, townCounts, townCenters);
 
               console.log('Town features matched:', townFeatures.features.length);
 
