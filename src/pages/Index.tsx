@@ -1,18 +1,23 @@
 import { useState } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MapPin, Camera } from 'lucide-react';
+import { MapPin, Camera, LogIn, Users } from 'lucide-react';
 import PhotoDropzone from '@/components/PhotoDropzone';
 import PhotoMap from '@/components/PhotoMap';
 import StatsPanel from '@/components/StatsPanel';
 import PhotoTimeline from '@/components/PhotoTimeline';
 import GridStatsPanel from '@/components/GridStatsPanel';
 import ViewModeToggle from '@/components/ViewModeToggle';
+import { Button } from '@/components/ui/button';
 import { toast } from '@/components/ui/sonner';
 import { PhotoLocation, ViewMode, DayStats } from '@/types/photo';
 import { calculateDayStats } from '@/utils/statsCalculator';
 import { GridStats } from '@/utils/gridCalculator';
+import { useAuth } from '@/hooks/useAuth';
 
 const Index = () => {
+  const navigate = useNavigate();
+  const { user } = useAuth();
   const [photos, setPhotos] = useState<PhotoLocation[]>([]);
   const [viewMode, setViewMode] = useState<ViewMode>('markers');
   const [stats, setStats] = useState<DayStats | null>(null);
@@ -65,6 +70,20 @@ const Index = () => {
               <span>{photos.length}枚の写真</span>
             </motion.div>
           )}
+          
+          <div className="flex items-center gap-2">
+            {user ? (
+              <Button variant="outline" size="sm" onClick={() => navigate('/feed')}>
+                <Users className="w-4 h-4 mr-2" />
+                フィード
+              </Button>
+            ) : (
+              <Button variant="outline" size="sm" onClick={() => navigate('/auth')}>
+                <LogIn className="w-4 h-4 mr-2" />
+                ログイン
+              </Button>
+            )}
+          </div>
         </div>
       </header>
 
