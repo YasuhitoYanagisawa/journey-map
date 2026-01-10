@@ -8,6 +8,7 @@ import { FeatureCollection, Feature, Polygon, MultiPolygon } from 'geojson';
 // Cache for loaded GeoJSON data
 let prefectureGeoJSON: FeatureCollection | null = null;
 let cityGeoJSONCache: Map<string, FeatureCollection> = new Map();
+let townGeoJSONCache: Map<string, FeatureCollection> = new Map();
 let isLoadingPrefecture = false;
 let loadPrefecturePromise: Promise<FeatureCollection | null> | null = null;
 
@@ -129,6 +130,131 @@ export async function loadCityGeoJSON(prefectureNames: string[]): Promise<Featur
     type: 'FeatureCollection',
     features,
   };
+}
+
+/**
+ * Load town-level (小地域/町丁目) GeoJSON data for specific prefectures
+ * Uses frogcat/japan-small-area dataset (simplified)
+ * URL format: https://frogcat.github.io/japan-small-area/{code}.json
+ */
+export async function loadTownGeoJSON(prefectureNames: string[]): Promise<FeatureCollection | null> {
+  const features: Feature[] = [];
+  const fetchPromises: Promise<void>[] = [];
+
+  for (const prefName of prefectureNames) {
+    const code = getPrefectureCode(prefName);
+    if (!code) continue;
+
+    // Check cache
+    if (townGeoJSONCache.has(code)) {
+      const cached = townGeoJSONCache.get(code)!;
+      features.push(...cached.features);
+      continue;
+    }
+
+    // Fetch town polygons by prefecture
+    // Example: https://frogcat.github.io/japan-small-area/13.json (Tokyo)
+    const url = `https://frogcat.github.io/japan-small-area/${code}.json`;
+
+    fetchPromises.push(
+      fetchGeoJSON(url)
+        .then((data) => {
+          if (data) {
+            townGeoJSONCache.set(code, data);
+            features.push(...data.features);
+          }
+        })
+        .catch((err) => {
+          console.warn(`Failed to load town GeoJSON for ${prefName}:`, err);
+        })
+    );
+  }
+
+  await Promise.all(fetchPromises);
+
+  if (features.length === 0) {
+    return null;
+  }
+
+  return {
+    type: 'FeatureCollection',
+    features,
+  };
+}
+
+/**
+ * Get town name from GeoJSON properties (frogcat/japan-small-area format)
+ * Uses "label" property for town name
+ */
+export function getTownName(feature: Feature): string | null {
+  const props = feature.properties;
+  if (!props) return null;
+
+  return props.label || props.name || null;
+}
+
+/**
+ * Create a feature collection for specific towns with photo counts
+ */
+export function createTownFeatures(
+  geoData: FeatureCollection,
+  townCounts: Map<string, { count: number; intensity: number }>
+): FeatureCollection<Polygon | MultiPolygon> {
+  const matchedFeatures: Feature<Polygon | MultiPolygon>[] = [];
+  const matched = new Set<string>();
+
+  for (const feature of geoData.features) {
+    const townName = getTownName(feature);
+    if (!townName) continue;
+
+    const normalizedTownName = normalizeTownName(townName);
+    
+    for (const [countKey, data] of townCounts.entries()) {
+      if (matched.has(countKey)) continue;
+      
+      const normalizedCountKey = normalizeTownName(countKey);
+      
+      // Match town names (handle variations)
+      if (normalizedTownName === normalizedCountKey || 
+          normalizedTownName.includes(normalizedCountKey) || 
+          normalizedCountKey.includes(normalizedTownName)) {
+        
+        const geometry = feature.geometry;
+        if (geometry.type === 'Polygon' || geometry.type === 'MultiPolygon') {
+          matchedFeatures.push({
+            type: 'Feature',
+            properties: {
+              name: townName,
+              matchedName: countKey,
+              count: data.count,
+              intensity: data.intensity,
+            },
+            geometry: geometry as Polygon | MultiPolygon,
+          });
+          matched.add(countKey);
+        }
+        break;
+      }
+    }
+  }
+
+  return {
+    type: 'FeatureCollection',
+    features: matchedFeatures,
+  };
+}
+
+/**
+ * Normalize town name for matching
+ */
+function normalizeTownName(name: string): string {
+  return name
+    .replace(/丁目$/, '')
+    .replace(/番地$/, '')
+    .replace(/[０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0)) // 全角→半角
+    .replace(/[一二三四五六七八九十]+丁目?$/, '')
+    .replace(/\d+丁目?$/, '')
+    .trim();
 }
 
 async function fetchGeoJSON(url: string): Promise<FeatureCollection | null> {
@@ -317,5 +443,6 @@ export function isGeoDataLoaded(): boolean {
 export function clearGeoDataCache(): void {
   prefectureGeoJSON = null;
   cityGeoJSONCache.clear();
+  townGeoJSONCache.clear();
   loadPrefecturePromise = null;
 }
