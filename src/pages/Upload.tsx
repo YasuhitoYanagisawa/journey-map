@@ -8,6 +8,7 @@ import { toast } from '@/components/ui/sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { parsePhotoEXIF } from '@/utils/exifParser';
+import { reverseGeocode } from '@/utils/reverseGeocode';
 import { useDropzone } from 'react-dropzone';
 
 const Upload = () => {
@@ -83,6 +84,11 @@ const Upload = () => {
         .from('photos')
         .getPublicUrl(fileName);
 
+      // Reverse geocode to get address info (町丁目まで)
+      const geocode = gpsData
+        ? await reverseGeocode(gpsData.latitude, gpsData.longitude)
+        : { prefecture: null, city: null, town: null };
+
       // Insert photo record
       const { error: insertError } = await supabase
         .from('photos')
@@ -95,6 +101,9 @@ const Upload = () => {
           longitude: gpsData?.longitude || null,
           taken_at: gpsData?.timestamp?.toISOString() || null,
           caption: caption.trim() || null,
+          prefecture: geocode.prefecture,
+          city: geocode.city,
+          town: geocode.town,
         });
 
       if (insertError) throw insertError;

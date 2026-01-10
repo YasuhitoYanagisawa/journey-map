@@ -248,13 +248,41 @@ export function createTownFeatures(
  * Normalize town name for matching
  */
 function normalizeTownName(name: string): string {
-  return name
-    .replace(/丁目$/, '')
-    .replace(/番地$/, '')
-    .replace(/[０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0)) // 全角→半角
-    .replace(/[一二三四五六七八九十]+丁目?$/, '')
-    .replace(/\d+丁目?$/, '')
-    .trim();
+  let x = name
+    .replace(/[\s　]/g, '')
+    .replace(/[０-９]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0)); // 全角→半角
+
+  // If there is a 丁目, cut anything after it (住所の番地等を除去)
+  const idx = x.indexOf('丁目');
+  if (idx >= 0) {
+    x = x.slice(0, idx + 2);
+  }
+
+  // Convert kanji numerals in "〇丁目" to arabic (一丁目→1丁目)
+  const map: Record<string, number> = { 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 };
+  const kanjiToNumber = (kanji: string): number | null => {
+    if (!kanji) return null;
+    if (kanji === '十') return 10;
+    if (!kanji.includes('十')) {
+      if (kanji.length === 1 && map[kanji] != null) return map[kanji];
+      return null;
+    }
+    const parts = kanji.split('十');
+    const tensPart = parts[0];
+    const onesPart = parts[1];
+    const tens = tensPart ? map[tensPart] : 1;
+    if (tens == null) return null;
+    const ones = onesPart ? map[onesPart] : 0;
+    if (onesPart && ones == null) return null;
+    return tens * 10 + ones;
+  };
+
+  x = x.replace(/([一二三四五六七八九十]+)丁目/g, (m, k) => {
+    const n = kanjiToNumber(k);
+    return n != null ? `${n}丁目` : m;
+  });
+
+  return x.trim();
 }
 
 async function fetchGeoJSON(url: string): Promise<FeatureCollection | null> {

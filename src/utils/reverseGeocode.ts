@@ -32,8 +32,8 @@ export async function reverseGeocode(
   }
 
   try {
-    // Include district type for Japanese wards (区)
-    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${longitude},${latitude}.json?types=region,district,place,locality,neighborhood&language=ja&access_token=${token}`;
+    // Include address type for Japanese 丁目 extraction
+    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${longitude},${latitude}.json?types=region,district,place,locality,neighborhood,address&language=ja&access_token=${token}`;
     
     const response = await fetch(url);
     if (!response.ok) {
@@ -46,6 +46,49 @@ export async function reverseGeocode(
     let prefecture: string | null = null;
     let city: string | null = null;
     let town: string | null = null;
+
+    const toHalfWidthDigits = (s: string) =>
+      s.replace(/[０-９]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0));
+
+    const kanjiToNumber = (kanji: string): number | null => {
+      const map: Record<string, number> = { 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 };
+      if (!kanji) return null;
+      if (kanji === '十') return 10;
+      if (!kanji.includes('十')) {
+        // Simple digit (一〜九)
+        if (kanji.length === 1 && map[kanji] != null) return map[kanji];
+        return null;
+      }
+
+      const parts = kanji.split('十');
+      const tensPart = parts[0];
+      const onesPart = parts[1];
+      const tens = tensPart ? map[tensPart] : 1;
+      if (tens == null) return null;
+      const ones = onesPart ? map[onesPart] : 0;
+      if (onesPart && ones == null) return null;
+      return tens * 10 + ones;
+    };
+
+    const normalizeChome = (s: string): string => {
+      let x = toHalfWidthDigits(s).replace(/[\s　]/g, '');
+      // Convert kanji numerals in "〇丁目" to arabic
+      x = x.replace(/([一二三四五六七八九十]+)丁目/g, (m, k) => {
+        const n = kanjiToNumber(k);
+        return n != null ? `${n}丁目` : m;
+      });
+      // If there is a 丁目, cut anything after it
+      const idx = x.indexOf('丁目');
+      if (idx >= 0) x = x.slice(0, idx + 2);
+      return x;
+    };
+
+    const extractChomeFromAddress = (s: string | null): string | null => {
+      if (!s) return null;
+      const normalized = normalizeChome(s);
+      const m = normalized.match(/([^,、]+?(?:\d+|[一二三四五六七八九十]+)丁目)/);
+      return m?.[1] ? normalizeChome(m[1]) : null;
+    };
 
     // Debug: Log API response for understanding structure
     console.log('Geocode features:', features.map((f: any) => ({
@@ -60,6 +103,8 @@ export async function reverseGeocode(
     let districtName: string | null = null;
     let localityName: string | null = null;
     let neighborhoodName: string | null = null;
+    let addressName: string | null = null;
+    let addressPlaceName: string | null = null;
 
     for (const feature of features) {
       const placeType = feature.place_type?.[0];
@@ -75,6 +120,9 @@ export async function reverseGeocode(
         localityName = text;
       } else if (placeType === 'neighborhood') {
         neighborhoodName = text;
+      } else if (placeType === 'address') {
+        addressName = text;
+        addressPlaceName = feature.place_name_ja || feature.place_name || null;
       }
     }
 
@@ -94,11 +142,15 @@ export async function reverseGeocode(
         localityName = text;
       } else if (id.startsWith('neighborhood.') && !neighborhoodName) {
         neighborhoodName = text;
+      } else if (id.startsWith('address.') && !addressName) {
+        addressName = text;
       }
     }
 
     // Assign prefecture
     prefecture = regionName;
+
+    const chomeFromAddress = extractChomeFromAddress(addressPlaceName || addressName);
 
     // Special handling for Tokyo 23 wards and other designated cities:
     // - If locality ends with 区, it's a ward (use as city)
@@ -106,23 +158,28 @@ export async function reverseGeocode(
     if (localityName && localityName.endsWith('区')) {
       // This is a ward (ku) - treat as city level
       city = localityName;
-      town = neighborhoodName;
+      town = neighborhoodName || chomeFromAddress;
     } else if (districtName && districtName.endsWith('区')) {
       // District is a ward
       city = districtName;
-      town = localityName || neighborhoodName;
+      town = neighborhoodName || chomeFromAddress || localityName;
     } else if (placeName && placeName !== regionName) {
       // Normal city/town
       city = placeName;
-      town = localityName || neighborhoodName;
+      town = neighborhoodName || chomeFromAddress || localityName;
     } else if (placeName === regionName && localityName) {
       // place is same as region (e.g., both 東京都), use locality as city
       city = localityName;
-      town = neighborhoodName;
+      town = neighborhoodName || chomeFromAddress;
     } else {
       // Fallback
       city = placeName || districtName || localityName;
-      town = neighborhoodName;
+      town = neighborhoodName || chomeFromAddress;
+    }
+
+    // Ensure town isn't accidentally the same as city
+    if (town && city && town === city) {
+      town = null;
     }
 
     console.log('Parsed result:', { prefecture, city, town });
