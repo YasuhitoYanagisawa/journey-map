@@ -53,8 +53,14 @@ export const usePhotos = () => {
   }, [user]);
 
   useEffect(() => {
+    if (!user) {
+      // Clear photos when user logs out
+      setPhotos([]);
+      setIsFetching(false);
+      return;
+    }
     fetchPhotos();
-  }, [fetchPhotos]);
+  }, [fetchPhotos, user]);
 
   // Upload files and save to Supabase
   const uploadPhotos = useCallback(async (files: File[]): Promise<PhotoLocation[]> => {
