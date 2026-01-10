@@ -7,12 +7,14 @@ import PhotoMap from '@/components/PhotoMap';
 import StatsPanel from '@/components/StatsPanel';
 import PhotoTimeline from '@/components/PhotoTimeline';
 import GridStatsPanel from '@/components/GridStatsPanel';
+import AdminStatsPanel from '@/components/AdminStatsPanel';
 import ViewModeToggle from '@/components/ViewModeToggle';
 import DateFilter from '@/components/DateFilter';
 import { Button } from '@/components/ui/button';
 import { ViewMode } from '@/types/photo';
 import { calculateDayStats } from '@/utils/statsCalculator';
 import { GridStats } from '@/utils/gridCalculator';
+import { buildAdminBoundaryStats, AdminLevel, AdminBoundaryStats } from '@/utils/adminBoundaryCalculator';
 import { useAuth } from '@/hooks/useAuth';
 import { usePhotos } from '@/hooks/usePhotos';
 
@@ -23,8 +25,10 @@ const Index = () => {
   const [viewMode, setViewMode] = useState<ViewMode>('markers');
   const [gridStats, setGridStats] = useState<GridStats | null>(null);
   const [highlightedCellId, setHighlightedCellId] = useState<string | null>(null);
+  const [highlightedAreaId, setHighlightedAreaId] = useState<string | null>(null);
   const [filteredIndices, setFilteredIndices] = useState<number[] | null>(null);
   const [statsLabel, setStatsLabel] = useState<string>('全期間の統計');
+  const [adminLevel, setAdminLevel] = useState<AdminLevel>('prefecture');
 
   const handleFilterChange = useCallback((indices: number[] | null, label: string) => {
     setFilteredIndices(indices);
@@ -42,6 +46,12 @@ const Index = () => {
     if (displayPhotos.length === 0) return null;
     return calculateDayStats(displayPhotos);
   }, [displayPhotos]);
+
+  // Calculate admin boundary stats
+  const adminStats = useMemo((): AdminBoundaryStats | null => {
+    if (displayPhotos.length === 0) return null;
+    return buildAdminBoundaryStats(displayPhotos, adminLevel);
+  }, [displayPhotos, adminLevel]);
 
   const handlePhotosLoaded = async (files: File[]) => {
     if (user) {
@@ -215,6 +225,8 @@ const Index = () => {
                   onGridStatsChange={setGridStats}
                   highlightedCellId={highlightedCellId}
                   filteredIndices={filteredIndices}
+                  adminStats={adminStats}
+                  highlightedAreaId={highlightedAreaId}
                 />
               </div>
 
@@ -232,7 +244,15 @@ const Index = () => {
                     onCellClick={setHighlightedCellId}
                   />
                 )}
-                {viewMode !== 'grid' && <PhotoTimeline photos={displayPhotos} />}
+                {viewMode === 'admin' && adminStats && (
+                  <AdminStatsPanel
+                    stats={adminStats}
+                    adminLevel={adminLevel}
+                    onLevelChange={setAdminLevel}
+                    onAreaClick={setHighlightedAreaId}
+                  />
+                )}
+                {viewMode !== 'grid' && viewMode !== 'admin' && <PhotoTimeline photos={displayPhotos} />}
               </motion.div>
             </motion.div>
           )}

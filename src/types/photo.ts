@@ -6,6 +6,10 @@ export interface PhotoLocation {
   timestamp: Date;
   thumbnailUrl: string;
   originalFile?: File;
+  // Administrative boundary info
+  prefecture?: string | null;
+  city?: string | null;
+  town?: string | null;
 }
 
 export interface DayStats {
@@ -17,4 +21,5 @@ export interface DayStats {
   locations: PhotoLocation[];
 }
 
-export type ViewMode = 'markers' | 'heatmap' | 'route' | 'grid';
+export type ViewMode = 'markers' | 'heatmap' | 'route' | 'grid' | 'admin';
+export type GridSizeOption = 100 | 500 | 1000 | 5000;

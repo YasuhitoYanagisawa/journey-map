@@ -99,40 +99,49 @@ export type Database = {
       photos: {
         Row: {
           caption: string | null
+          city: string | null
           created_at: string
           filename: string
           id: string
           latitude: number | null
           longitude: number | null
+          prefecture: string | null
           storage_path: string
           taken_at: string | null
           thumbnail_url: string | null
+          town: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
           caption?: string | null
+          city?: string | null
           created_at?: string
           filename: string
           id?: string
           latitude?: number | null
           longitude?: number | null
+          prefecture?: string | null
           storage_path: string
           taken_at?: string | null
           thumbnail_url?: string | null
+          town?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
           caption?: string | null
+          city?: string | null
           created_at?: string
           filename?: string
           id?: string
           latitude?: number | null
           longitude?: number | null
+          prefecture?: string | null
           storage_path?: string
           taken_at?: string | null
           thumbnail_url?: string | null
+          town?: string | null
           updated_at?: string
           user_id?: string
         }

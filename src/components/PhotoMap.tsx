@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
 import { Key } from 'lucide-react';
 import { buildPhotoGrid, getGridCellColor, GridStats } from '@/utils/gridCalculator';
+import { AdminBoundaryStats } from '@/utils/adminBoundaryCalculator';
 
 interface PhotoMapProps {
   photos: PhotoLocation[];
@@ -14,11 +15,13 @@ interface PhotoMapProps {
   onGridStatsChange?: (stats: GridStats | null) => void;
   highlightedCellId?: string | null;
   filteredIndices?: number[] | null;
+  adminStats?: AdminBoundaryStats | null;
+  highlightedAreaId?: string | null;
 }
 
 const MAPBOX_TOKEN_KEY = 'phototrail_mapbox_token';
 
-const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId, filteredIndices }: PhotoMapProps) => {
+const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId, filteredIndices, adminStats, highlightedAreaId }: PhotoMapProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const markersRef = useRef<mapboxgl.Marker[]>([]);
@@ -129,6 +132,16 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId, filt
         }
       });
       map.current.removeSource('photos-cluster');
+    }
+
+    // Remove admin area layers
+    if (map.current.getSource('admin-areas')) {
+      ['admin-points', 'admin-labels'].forEach((layerId) => {
+        if (map.current!.getLayer(layerId)) {
+          map.current!.removeLayer(layerId);
+        }
+      });
+      map.current.removeSource('admin-areas');
     }
   }, []);
 
@@ -509,8 +522,104 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId, filt
           'text-halo-width': 1,
         },
       });
+    } else if (viewMode === 'admin' && adminStats && adminStats.cells.length > 0) {
+      // Add admin area markers
+      const geojsonData = {
+        type: 'FeatureCollection' as const,
+        features: adminStats.cells.map((cell, index) => ({
+          type: 'Feature' as const,
+          properties: {
+            id: cell.id,
+            name: cell.name,
+            count: cell.count,
+            intensity: cell.intensity,
+            rank: index + 1,
+          },
+          geometry: {
+            type: 'Point' as const,
+            coordinates: [cell.centerLng, cell.centerLat],
+          },
+        })),
+      };
+
+      map.current.addSource('admin-areas', {
+        type: 'geojson',
+        data: geojsonData,
+      });
+
+      // Circle markers for admin areas
+      map.current.addLayer({
+        id: 'admin-points',
+        type: 'circle',
+        source: 'admin-areas',
+        paint: {
+          'circle-radius': [
+            'interpolate',
+            ['linear'],
+            ['get', 'count'],
+            1, 15,
+            10, 25,
+            50, 40,
+          ],
+          'circle-color': [
+            'interpolate',
+            ['linear'],
+            ['get', 'intensity'],
+            0, 'hsl(210, 70%, 50%)',
+            0.5, 'hsl(60, 80%, 50%)',
+            1, 'hsl(0, 80%, 50%)',
+          ],
+          'circle-stroke-width': 3,
+          'circle-stroke-color': '#fff',
+          'circle-opacity': 0.8,
+        },
+      });
+
+      // Labels for admin areas
+      map.current.addLayer({
+        id: 'admin-labels',
+        type: 'symbol',
+        source: 'admin-areas',
+        layout: {
+          'text-field': ['concat', ['get', 'name'], '\n', ['get', 'count'], '枚'],
+          'text-size': 12,
+          'text-font': ['DIN Pro Medium', 'Arial Unicode MS Bold'],
+          'text-offset': [0, 2.5],
+          'text-anchor': 'top',
+        },
+        paint: {
+          'text-color': '#fff',
+          'text-halo-color': 'rgba(0,0,0,0.7)',
+          'text-halo-width': 1.5,
+        },
+      });
+
+      // Click handler for admin areas
+      map.current.on('click', 'admin-points', (e) => {
+        if (!e.features || e.features.length === 0) return;
+        const feature = e.features[0];
+        const props = feature.properties;
+        if (!props) return;
+
+        const area = adminStats.cells.find(c => c.id === props.id);
+        if (area) {
+          map.current!.flyTo({
+            center: [area.centerLng, area.centerLat],
+            zoom: 13,
+            duration: 800,
+          });
+        }
+      });
+
+      // Change cursor on hover
+      map.current.on('mouseenter', 'admin-points', () => {
+        if (map.current) map.current.getCanvas().style.cursor = 'pointer';
+      });
+      map.current.on('mouseleave', 'admin-points', () => {
+        if (map.current) map.current.getCanvas().style.cursor = '';
+      });
     }
-  }, [displayPhotos, viewMode, isTokenSet, mapLoaded, gridStats, cleanupMapLayers, showPhotoPopup]);
+  }, [displayPhotos, viewMode, isTokenSet, mapLoaded, gridStats, adminStats, cleanupMapLayers, showPhotoPopup]);
 
   // Highlight cell when clicked from sidebar
   useEffect(() => {
@@ -524,7 +633,21 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId, filt
         duration: 800,
       });
     }
-  }, [highlightedCellId, viewMode, isTokenSet, gridStats]);
+  }, [highlightedCellId, viewMode, isTokenSet, mapLoaded, gridStats]);
+
+  // Highlight admin area when clicked from sidebar
+  useEffect(() => {
+    if (!map.current || !isTokenSet || !mapLoaded || viewMode !== 'admin' || !adminStats) return;
+
+    const area = adminStats.cells.find((c) => c.id === highlightedAreaId);
+    if (area) {
+      map.current.flyTo({
+        center: [area.centerLng, area.centerLat],
+        zoom: 12,
+        duration: 800,
+      });
+    }
+  }, [highlightedAreaId, viewMode, isTokenSet, mapLoaded, adminStats]);
 
   if (!isTokenSet) {
     return (
