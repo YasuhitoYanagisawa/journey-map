@@ -9,7 +9,7 @@ export type DateFilterMode = 'all' | 'day' | 'week' | 'month';
 
 interface DateFilterProps {
   photos: { timestamp: Date }[];
-  onFilterChange: (filteredIndices: number[] | null) => void;
+  onFilterChange: (filteredIndices: number[] | null, label: string) => void;
 }
 
 interface DateRange {
@@ -64,7 +64,7 @@ const DateFilter = ({ photos, onFilterChange }: DateFilterProps) => {
   // Filter photos and notify parent
   useEffect(() => {
     if (mode === 'all' || !currentRange) {
-      onFilterChange(null);
+      onFilterChange(null, '全期間の統計');
       return;
     }
 
@@ -74,8 +74,18 @@ const DateFilter = ({ photos, onFilterChange }: DateFilterProps) => {
         indices.push(index);
       }
     });
-    // Always return the indices array (even if empty) when filtering is active
-    onFilterChange(indices);
+    
+    // Create label based on mode
+    let statsLabel = '';
+    if (mode === 'day') {
+      statsLabel = `${currentRange.label}の統計`;
+    } else if (mode === 'week') {
+      statsLabel = `${currentRange.label}の統計`;
+    } else if (mode === 'month') {
+      statsLabel = `${currentRange.label}の統計`;
+    }
+    
+    onFilterChange(indices, statsLabel);
   }, [photos, mode, currentRange, onFilterChange]);
 
   // Count photos in current range

@@ -5,9 +5,10 @@ import { formatDuration, formatTime } from '@/utils/statsCalculator';
 
 interface StatsPanelProps {
   stats: DayStats;
+  title?: string;
 }
 
-const StatsPanel = ({ stats }: StatsPanelProps) => {
+const StatsPanel = ({ stats, title = '今日の統計' }: StatsPanelProps) => {
   const statItems = [
     {
       icon: Camera,
@@ -44,7 +45,7 @@ const StatsPanel = ({ stats }: StatsPanelProps) => {
       transition={{ duration: 0.5, delay: 0.2 }}
       className="glass-panel p-6 space-y-4"
     >
-      <h2 className="text-lg font-semibold gradient-text">今日の統計</h2>
+      <h2 className="text-lg font-semibold gradient-text">{title}</h2>
       
       <div className="grid grid-cols-2 gap-4">
         {statItems.map((item, index) => (
