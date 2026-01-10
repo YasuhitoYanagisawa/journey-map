@@ -29,11 +29,17 @@ const Index = () => {
     setFilteredIndices(indices);
   }, []);
 
-  // Calculate stats from photos
+  // Get filtered photos based on date filter
+  const displayPhotos = useMemo(() => {
+    if (!filteredIndices) return photos;
+    return filteredIndices.map(i => photos[i]).filter(Boolean);
+  }, [photos, filteredIndices]);
+
+  // Calculate stats from filtered photos
   const stats = useMemo(() => {
-    if (photos.length === 0) return null;
-    return calculateDayStats(photos);
-  }, [photos]);
+    if (displayPhotos.length === 0) return null;
+    return calculateDayStats(displayPhotos);
+  }, [displayPhotos]);
 
   const handlePhotosLoaded = async (files: File[]) => {
     if (user) {
