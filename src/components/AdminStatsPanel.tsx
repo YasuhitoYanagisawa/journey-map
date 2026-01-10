@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Building2, MapPin, ChevronRight } from 'lucide-react';
+import { Building2, MapPin, ChevronRight, RefreshCw } from 'lucide-react';
 import { AdminBoundaryStats, AdminLevel, getAdminLevelLabel } from '@/utils/adminBoundaryCalculator';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -9,10 +10,29 @@ interface AdminStatsPanelProps {
   adminLevel: AdminLevel;
   onLevelChange: (level: AdminLevel) => void;
   onAreaClick?: (areaId: string) => void;
+  onUpdateAddressInfo?: (onProgress: (current: number, total: number) => void) => Promise<number>;
+  hasPhotosWithoutAddress?: boolean;
 }
 
-const AdminStatsPanel = ({ stats, adminLevel, onLevelChange, onAreaClick }: AdminStatsPanelProps) => {
+const AdminStatsPanel = ({ stats, adminLevel, onLevelChange, onAreaClick, onUpdateAddressInfo, hasPhotosWithoutAddress }: AdminStatsPanelProps) => {
   const levels: AdminLevel[] = ['prefecture', 'city', 'town'];
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [updateProgress, setUpdateProgress] = useState<{ current: number; total: number } | null>(null);
+
+  const handleUpdateAddress = async () => {
+    if (!onUpdateAddressInfo) return;
+    setIsUpdating(true);
+    setUpdateProgress({ current: 0, total: 0 });
+    
+    try {
+      await onUpdateAddressInfo((current, total) => {
+        setUpdateProgress({ current, total });
+      });
+    } finally {
+      setIsUpdating(false);
+      setUpdateProgress(null);
+    }
+  };
 
   return (
     <motion.div
@@ -47,6 +67,29 @@ const AdminStatsPanel = ({ stats, adminLevel, onLevelChange, onAreaClick }: Admi
       <div className="text-sm text-muted-foreground">
         {stats.totalAreas}エリア・最大{stats.maxCount}枚
       </div>
+
+      {/* Update address button */}
+      {hasPhotosWithoutAddress && (
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full"
+          onClick={handleUpdateAddress}
+          disabled={isUpdating}
+        >
+          {isUpdating ? (
+            <>
+              <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+              {updateProgress ? `${updateProgress.current}/${updateProgress.total}` : '更新中...'}
+            </>
+          ) : (
+            <>
+              <RefreshCw className="w-4 h-4 mr-2" />
+              住所情報を取得
+            </>
+          )}
+        </Button>
+      )}
 
       {/* Area list */}
       <div className="space-y-2 max-h-[300px] overflow-y-auto">

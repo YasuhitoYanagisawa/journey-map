@@ -170,12 +170,75 @@ export const usePhotos = () => {
     setPhotos(prev => [...prev, ...newPhotos]);
   }, []);
 
+  // Update address info for photos that don't have it
+  const updateAddressInfo = useCallback(async (onProgress?: (current: number, total: number) => void): Promise<number> => {
+    if (!user) return 0;
+
+    // Find photos without address info
+    const photosNeedingUpdate = photos.filter(p => !p.prefecture && !p.city && !p.town);
+    if (photosNeedingUpdate.length === 0) {
+      toast.message('すべての写真に住所情報があります');
+      return 0;
+    }
+
+    let updated = 0;
+    const total = photosNeedingUpdate.length;
+
+    for (let i = 0; i < photosNeedingUpdate.length; i++) {
+      const photo = photosNeedingUpdate[i];
+      onProgress?.(i + 1, total);
+
+      try {
+        const geocodeResult = await reverseGeocode(photo.latitude, photo.longitude);
+        
+        if (geocodeResult.prefecture || geocodeResult.city || geocodeResult.town) {
+          const { error } = await supabase
+            .from('photos')
+            .update({
+              prefecture: geocodeResult.prefecture,
+              city: geocodeResult.city,
+              town: geocodeResult.town,
+            })
+            .eq('id', photo.id);
+
+          if (!error) {
+            updated++;
+            // Update local state
+            setPhotos(prev => prev.map(p => 
+              p.id === photo.id 
+                ? { ...p, prefecture: geocodeResult.prefecture, city: geocodeResult.city, town: geocodeResult.town }
+                : p
+            ));
+          }
+        }
+
+        // Rate limit: avoid hitting Mapbox limits
+        if (i < photosNeedingUpdate.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 150));
+        }
+      } catch (error) {
+        console.error('Geocoding error for photo:', photo.id, error);
+      }
+    }
+
+    if (updated > 0) {
+      toast.success(`${updated}枚の写真に住所情報を追加しました`);
+    } else {
+      toast.error('住所情報の取得に失敗しました', {
+        description: 'Mapbox APIキーを確認してください',
+      });
+    }
+
+    return updated;
+  }, [user, photos]);
+
   return {
     photos,
     isLoading,
     isFetching,
     uploadPhotos,
     addLocalPhotos,
+    updateAddressInfo,
     refetch: fetchPhotos,
   };
 };
