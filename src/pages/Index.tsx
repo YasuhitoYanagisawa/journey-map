@@ -6,6 +6,7 @@ import PhotoDropzone from '@/components/PhotoDropzone';
 import PhotoMap from '@/components/PhotoMap';
 import StatsPanel from '@/components/StatsPanel';
 import PhotoTimeline from '@/components/PhotoTimeline';
+import NearbyNews from '@/components/NearbyNews';
 import GridStatsPanel from '@/components/GridStatsPanel';
 import AdminStatsPanel from '@/components/AdminStatsPanel';
 import ViewModeToggle from '@/components/ViewModeToggle';
@@ -259,7 +260,12 @@ const Index = () => {
                     hasPhotosWithoutAddress={hasPhotosWithoutAddress}
                   />
                 )}
-                {viewMode !== 'grid' && viewMode !== 'admin' && <PhotoTimeline photos={displayPhotos} />}
+                {viewMode !== 'grid' && viewMode !== 'admin' && (
+                  <>
+                    <PhotoTimeline photos={displayPhotos} />
+                    <NearbyNews photos={displayPhotos} />
+                  </>
+                )}
               </motion.div>
             </motion.div>
           )}
