@@ -1,13 +1,14 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MapPin, Camera, LogIn, Users, Loader2 } from 'lucide-react';
+import { MapPin, Camera, LogIn, Users } from 'lucide-react';
 import PhotoDropzone from '@/components/PhotoDropzone';
 import PhotoMap from '@/components/PhotoMap';
 import StatsPanel from '@/components/StatsPanel';
 import PhotoTimeline from '@/components/PhotoTimeline';
 import GridStatsPanel from '@/components/GridStatsPanel';
 import ViewModeToggle from '@/components/ViewModeToggle';
+import DateFilter from '@/components/DateFilter';
 import { Button } from '@/components/ui/button';
 import { ViewMode } from '@/types/photo';
 import { calculateDayStats } from '@/utils/statsCalculator';
@@ -22,6 +23,11 @@ const Index = () => {
   const [viewMode, setViewMode] = useState<ViewMode>('markers');
   const [gridStats, setGridStats] = useState<GridStats | null>(null);
   const [highlightedCellId, setHighlightedCellId] = useState<string | null>(null);
+  const [filteredIndices, setFilteredIndices] = useState<number[] | null>(null);
+
+  const handleFilterChange = useCallback((indices: number[] | null) => {
+    setFilteredIndices(indices);
+  }, []);
 
   // Calculate stats from photos
   const stats = useMemo(() => {
@@ -164,10 +170,14 @@ const Index = () => {
               {/* Map Area */}
               <div className="flex-1 relative p-4">
                 {/* View Mode Toggle */}
-                <div className="absolute top-6 left-6 z-10">
+                <div className="absolute top-6 left-6 z-10 space-y-2">
                   <ViewModeToggle 
                     currentMode={viewMode}
                     onChange={setViewMode}
+                  />
+                  <DateFilter 
+                    photos={photos}
+                    onFilterChange={handleFilterChange}
                   />
                 </div>
 
@@ -196,6 +206,7 @@ const Index = () => {
                   viewMode={viewMode}
                   onGridStatsChange={setGridStats}
                   highlightedCellId={highlightedCellId}
+                  filteredIndices={filteredIndices}
                 />
               </div>
 
