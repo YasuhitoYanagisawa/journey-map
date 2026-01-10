@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { MapPin, Flame, Route, Grid3X3 } from 'lucide-react';
+import { MapPin, Flame, Route, Grid3X3, Building2 } from 'lucide-react';
 import { ViewMode } from '@/types/photo';
 
 interface ViewModeToggleProps {
@@ -10,9 +10,10 @@ interface ViewModeToggleProps {
 const ViewModeToggle = ({ currentMode, onChange }: ViewModeToggleProps) => {
   const modes: { mode: ViewMode; icon: typeof MapPin; label: string }[] = [
     { mode: 'markers', icon: MapPin, label: 'マーカー' },
-    { mode: 'heatmap', icon: Flame, label: 'ヒートマップ' },
+    { mode: 'heatmap', icon: Flame, label: 'ヒート' },
     { mode: 'route', icon: Route, label: 'ルート' },
     { mode: 'grid', icon: Grid3X3, label: 'グリッド' },
+    { mode: 'admin', icon: Building2, label: '行政区画' },
   ];
 
   return (

@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { PhotoLocation } from '@/types/photo';
 import { parseMultiplePhotos } from '@/utils/exifParser';
+import { reverseGeocode } from '@/utils/reverseGeocode';
 import { toast } from '@/components/ui/sonner';
 
 export const usePhotos = () => {
@@ -38,6 +39,9 @@ export const usePhotos = () => {
           longitude: p.longitude!,
           timestamp: p.taken_at ? new Date(p.taken_at) : new Date(p.created_at),
           thumbnailUrl: p.thumbnail_url || '',
+          prefecture: p.prefecture,
+          city: p.city,
+          town: p.town,
         }));
 
       setPhotos(dbPhotos);
@@ -107,6 +111,9 @@ export const usePhotos = () => {
           .from('photos')
           .getPublicUrl(fileName);
 
+        // Reverse geocode to get address info
+        const geocodeResult = await reverseGeocode(photo.latitude, photo.longitude);
+
         // Insert photo record
         const { data: insertedPhoto, error: insertError } = await supabase
           .from('photos')
@@ -118,6 +125,9 @@ export const usePhotos = () => {
             latitude: photo.latitude,
             longitude: photo.longitude,
             taken_at: photo.timestamp.toISOString(),
+            prefecture: geocodeResult.prefecture,
+            city: geocodeResult.city,
+            town: geocodeResult.town,
           })
           .select()
           .single();
@@ -134,6 +144,9 @@ export const usePhotos = () => {
           longitude: insertedPhoto.longitude!,
           timestamp: new Date(insertedPhoto.taken_at!),
           thumbnailUrl: insertedPhoto.thumbnail_url || '',
+          prefecture: insertedPhoto.prefecture,
+          city: insertedPhoto.city,
+          town: insertedPhoto.town,
         });
       }
 
