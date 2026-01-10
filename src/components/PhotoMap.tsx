@@ -32,6 +32,7 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId, filt
     const saved = localStorage.getItem(MAPBOX_TOKEN_KEY);
     return saved ? saved.trim().length > 0 : false;
   });
+  const [mapLoaded, setMapLoaded] = useState(false);
 
   // Filter photos based on indices
   const displayPhotos = useMemo(() => {
@@ -77,7 +78,12 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId, filt
       'top-right'
     );
 
+    map.current.on('load', () => {
+      setMapLoaded(true);
+    });
+
     return () => {
+      setMapLoaded(false);
       map.current?.remove();
     };
   }, [isTokenSet, mapboxToken]);
@@ -159,7 +165,7 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId, filt
 
   // Update markers/visualization
   useEffect(() => {
-    if (!map.current || !isTokenSet) return;
+    if (!map.current || !isTokenSet || !mapLoaded) return;
 
     // Clear existing markers
     markersRef.current.forEach((marker) => marker.remove());
@@ -504,11 +510,11 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId, filt
         },
       });
     }
-  }, [displayPhotos, viewMode, isTokenSet, gridStats, cleanupMapLayers, showPhotoPopup]);
+  }, [displayPhotos, viewMode, isTokenSet, mapLoaded, gridStats, cleanupMapLayers, showPhotoPopup]);
 
   // Highlight cell when clicked from sidebar
   useEffect(() => {
-    if (!map.current || !isTokenSet || viewMode !== 'grid' || !gridStats) return;
+    if (!map.current || !isTokenSet || !mapLoaded || viewMode !== 'grid' || !gridStats) return;
 
     const cell = gridStats.cells.find((c) => c.id === highlightedCellId);
     if (cell) {
