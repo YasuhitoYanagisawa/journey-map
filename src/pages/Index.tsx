@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MapPin, Camera, LogIn, Users } from 'lucide-react';
+import { MapPin, Camera, LogIn, Users, Loader2 } from 'lucide-react';
 import PhotoDropzone from '@/components/PhotoDropzone';
 import PhotoMap from '@/components/PhotoMap';
 import StatsPanel from '@/components/StatsPanel';
@@ -122,7 +122,19 @@ const Index = () => {
       {/* Main Content */}
       <main className="pt-20">
         <AnimatePresence mode="wait">
-          {!hasPhotos ? (
+          {isFetching ? (
+            /* Loading State */
+            <motion.div
+              key="loading"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="min-h-[calc(100vh-5rem)] flex flex-col items-center justify-center"
+            >
+              <Loader2 className="w-8 h-8 animate-spin text-primary mb-4" />
+              <p className="text-muted-foreground">写真を読み込み中...</p>
+            </motion.div>
+          ) : !hasPhotos ? (
             /* Welcome Screen */
             <motion.div
               key="welcome"
@@ -160,7 +172,7 @@ const Index = () => {
 
               <PhotoDropzone 
                 onFilesSelected={handlePhotosLoaded}
-                isLoading={isLoading || isFetching}
+                isLoading={isLoading}
               />
 
               <motion.div
