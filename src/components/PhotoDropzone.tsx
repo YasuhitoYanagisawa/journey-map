@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Upload, ImageIcon, Loader2 } from 'lucide-react';
 import { parseMultiplePhotos } from '@/utils/exifParser';
@@ -13,42 +13,55 @@ const PhotoDropzone = ({ onPhotosLoaded, isLoading = false }: PhotoDropzoneProps
   const [isDragging, setIsDragging] = useState(false);
   const [processedCount, setProcessedCount] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
+  const [isParsing, setIsParsing] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
+
+  const parseFiles = useCallback(async (files: File[]) => {
+    if (files.length === 0) return;
+    if (isParsing) return;
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    setIsParsing(true);
+    setTotalCount(files.length);
+    setProcessedCount(0);
+
+    try {
+      const photos = await parseMultiplePhotos(files, {
+        concurrency: 2,
+        yieldEvery: 3,
+        signal: controller.signal,
+        onProgress: (processed) => setProcessedCount(processed),
+      });
+
+      if (controller.signal.aborted) return;
+      if (photos.length > 0) {
+        onPhotosLoaded(photos);
+      }
+    } finally {
+      abortRef.current = null;
+      setIsParsing(false);
+    }
+  }, [isParsing, onPhotosLoaded]);
 
   const handleDrop = useCallback(async (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
 
-    const files = Array.from(e.dataTransfer.files).filter(file => 
+    const files = Array.from(e.dataTransfer.files).filter((file) =>
       file.type.startsWith('image/')
     );
 
-    if (files.length === 0) return;
-
-    setTotalCount(files.length);
-    setProcessedCount(0);
-
-    const photos = await parseMultiplePhotos(files);
-    setProcessedCount(files.length);
-    
-    if (photos.length > 0) {
-      onPhotosLoaded(photos);
-    }
-  }, [onPhotosLoaded]);
+    await parseFiles(files);
+  }, [parseFiles]);
 
   const handleFileInput = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
-    if (files.length === 0) return;
+    e.target.value = '';
+    await parseFiles(files);
+  }, [parseFiles]);
 
-    setTotalCount(files.length);
-    setProcessedCount(0);
-
-    const photos = await parseMultiplePhotos(files);
-    setProcessedCount(files.length);
-    
-    if (photos.length > 0) {
-      onPhotosLoaded(photos);
-    }
-  }, [onPhotosLoaded]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
