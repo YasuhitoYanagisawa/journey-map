@@ -5,6 +5,7 @@ import { PhotoLocation } from '@/types/photo';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
+import NewsDetailModal from './NewsDetailModal';
 
 interface NewsItem {
   title: string;
@@ -23,6 +24,10 @@ const NearbyNews = ({ photos }: NearbyNewsProps) => {
   const [error, setError] = useState<string | null>(null);
   const [hasFetched, setHasFetched] = useState(false);
   
+  // Modal state
+  const [selectedNews, setSelectedNews] = useState<NewsItem | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  
   // Manual input states
   const [manualLocation, setManualLocation] = useState('');
   const [manualDate, setManualDate] = useState(() => {
@@ -31,6 +36,16 @@ const NearbyNews = ({ photos }: NearbyNewsProps) => {
   });
   const [isGettingLocation, setIsGettingLocation] = useState(false);
   const [currentLocationName, setCurrentLocationName] = useState<string | null>(null);
+
+  const handleNewsClick = (item: NewsItem) => {
+    setSelectedNews(item);
+    setIsModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setTimeout(() => setSelectedNews(null), 200);
+  };
 
   // Get the most common location and earliest date from photos
   const getSearchParamsFromPhotos = useCallback(() => {
@@ -287,15 +302,13 @@ const NearbyNews = ({ photos }: NearbyNewsProps) => {
       {news.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
           {news.map((item, index) => (
-            <motion.a
+            <motion.button
               key={index}
-              href={item.url || undefined}
-              target="_blank"
-              rel="noopener noreferrer"
+              onClick={() => handleNewsClick(item)}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3, delay: 0.05 * index }}
-              className="block p-4 rounded-lg bg-secondary/30 hover:bg-secondary/50 transition-colors group"
+              className="block p-4 rounded-lg bg-secondary/30 hover:bg-secondary/50 transition-colors group text-left w-full"
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="flex-1 min-w-0">
@@ -313,14 +326,19 @@ const NearbyNews = ({ photos }: NearbyNewsProps) => {
                     </p>
                   )}
                 </div>
-                {item.url && (
-                  <ExternalLink className="w-4 h-4 text-muted-foreground group-hover:text-primary flex-shrink-0 transition-colors" />
-                )}
+                <ExternalLink className="w-4 h-4 text-muted-foreground group-hover:text-primary flex-shrink-0 transition-colors" />
               </div>
-            </motion.a>
+            </motion.button>
           ))}
         </div>
       )}
+
+      {/* News Detail Modal */}
+      <NewsDetailModal
+        news={selectedNews}
+        isOpen={isModalOpen}
+        onClose={handleCloseModal}
+      />
     </motion.div>
   );
 };
