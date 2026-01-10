@@ -24,9 +24,11 @@ const Index = () => {
   const [gridStats, setGridStats] = useState<GridStats | null>(null);
   const [highlightedCellId, setHighlightedCellId] = useState<string | null>(null);
   const [filteredIndices, setFilteredIndices] = useState<number[] | null>(null);
+  const [statsLabel, setStatsLabel] = useState<string>('全期間の統計');
 
-  const handleFilterChange = useCallback((indices: number[] | null) => {
+  const handleFilterChange = useCallback((indices: number[] | null, label: string) => {
     setFilteredIndices(indices);
+    setStatsLabel(label);
   }, []);
 
   // Get filtered photos based on date filter
@@ -223,7 +225,7 @@ const Index = () => {
                 transition={{ delay: 0.2 }}
                 className="w-80 p-4 space-y-4 overflow-y-auto"
               >
-                {stats && <StatsPanel stats={stats} />}
+                {stats && <StatsPanel stats={stats} title={statsLabel} />}
                 {viewMode === 'grid' && gridStats && (
                   <GridStatsPanel
                     gridStats={gridStats}
