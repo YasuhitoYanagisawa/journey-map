@@ -37,9 +37,6 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId, filt
     return saved ? saved.trim().length > 0 : false;
   });
   const [mapLoaded, setMapLoaded] = useState(false);
-  
-  // Hovered area info for fixed overlay display
-  const [hoveredArea, setHoveredArea] = useState<{ name: string; count: number } | null>(null);
 
   // Filter photos based on indices
   const displayPhotos = useMemo(() => {
@@ -589,7 +586,33 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId, filt
                 },
               });
 
-              // Remove map-based labels - use fixed overlay instead
+              // Add labels on polygons
+              map.current.addLayer({
+                id: 'admin-polygon-labels',
+                type: 'symbol',
+                source: 'admin-polygons',
+                layout: {
+                  'text-field': ['concat', ['get', 'name'], '\n', ['get', 'count'], '枚の写真'],
+                  'text-size': 14,
+                  'text-font': ['DIN Pro Bold', 'Arial Unicode MS Bold'],
+                  'text-allow-overlap': false,
+                  'text-ignore-placement': false,
+                },
+                paint: {
+                  'text-color': '#fff',
+                  'text-halo-color': 'rgba(0,0,0,0.8)',
+                  'text-halo-width': 2,
+                },
+              });
+
+              // Auto-fit to show all colored polygons
+              const bounds = new mapboxgl.LngLatBounds();
+              adminStats.cells.forEach(cell => {
+                bounds.extend([cell.centerLng, cell.centerLat]);
+              });
+              if (!bounds.isEmpty()) {
+                map.current.fitBounds(bounds, { padding: 60, duration: 800 });
+              }
 
               map.current.on('click', 'admin-polygon-fill', (e) => {
                 if (!e.features || e.features.length === 0) return;
@@ -615,15 +638,6 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId, filt
               });
               map.current.on('mouseleave', 'admin-polygon-fill', () => {
                 if (map.current) map.current.getCanvas().style.cursor = '';
-                setHoveredArea(null);
-              });
-              
-              map.current.on('mousemove', 'admin-polygon-fill', (e) => {
-                if (!e.features || e.features.length === 0) return;
-                const props = e.features[0].properties;
-                if (props) {
-                  setHoveredArea({ name: props.name, count: props.count });
-                }
               });
 
               return;
@@ -697,7 +711,33 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId, filt
                   },
                 });
 
-                // Remove map-based labels - use fixed overlay instead
+                // Add labels on polygons
+                map.current.addLayer({
+                  id: 'admin-polygon-labels',
+                  type: 'symbol',
+                  source: 'admin-polygons',
+                  layout: {
+                    'text-field': ['concat', ['get', 'name'], '\n', ['get', 'count'], '枚の写真'],
+                    'text-size': 13,
+                    'text-font': ['DIN Pro Bold', 'Arial Unicode MS Bold'],
+                    'text-allow-overlap': false,
+                    'text-ignore-placement': false,
+                  },
+                  paint: {
+                    'text-color': '#fff',
+                    'text-halo-color': 'rgba(0,0,0,0.8)',
+                    'text-halo-width': 2,
+                  },
+                });
+
+                // Auto-fit to show all colored polygons
+                const bounds = new mapboxgl.LngLatBounds();
+                adminStats.cells.forEach(cell => {
+                  bounds.extend([cell.centerLng, cell.centerLat]);
+                });
+                if (!bounds.isEmpty()) {
+                  map.current.fitBounds(bounds, { padding: 60, duration: 800 });
+                }
 
                 map.current.on('click', 'admin-polygon-fill', (e) => {
                   if (!e.features || e.features.length === 0) return;
@@ -724,15 +764,6 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId, filt
                 });
                 map.current.on('mouseleave', 'admin-polygon-fill', () => {
                   if (map.current) map.current.getCanvas().style.cursor = '';
-                  setHoveredArea(null);
-                });
-                
-                map.current.on('mousemove', 'admin-polygon-fill', (e) => {
-                  if (!e.features || e.features.length === 0) return;
-                  const props = e.features[0].properties;
-                  if (props) {
-                    setHoveredArea({ name: props.name, count: props.count });
-                  }
                 });
 
                 return;
@@ -915,16 +946,8 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId, filt
   }
 
   return (
-    <div className="map-container w-full h-full min-h-[500px] relative">
+    <div className="map-container w-full h-full min-h-[500px]">
       <div ref={mapContainer} className="w-full h-full" />
-      
-      {/* Fixed overlay for hovered area info */}
-      {viewMode === 'admin' && hoveredArea && (
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 glass-panel px-6 py-3 text-center">
-          <p className="text-lg font-bold">{hoveredArea.name}</p>
-          <p className="text-sm text-muted-foreground">{hoveredArea.count}枚の写真</p>
-        </div>
-      )}
     </div>
   );
 };
