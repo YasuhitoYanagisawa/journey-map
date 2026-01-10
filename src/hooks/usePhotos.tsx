@@ -1,0 +1,168 @@
+import { useState, useEffect, useCallback } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
+import { PhotoLocation } from '@/types/photo';
+import { parseMultiplePhotos } from '@/utils/exifParser';
+import { toast } from '@/components/ui/sonner';
+
+export const usePhotos = () => {
+  const { user } = useAuth();
+  const [photos, setPhotos] = useState<PhotoLocation[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isFetching, setIsFetching] = useState(true);
+
+  // Fetch photos from Supabase on mount
+  const fetchPhotos = useCallback(async () => {
+    if (!user) {
+      setIsFetching(false);
+      return;
+    }
+
+    try {
+      setIsFetching(true);
+      const { data, error } = await supabase
+        .from('photos')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('taken_at', { ascending: true });
+
+      if (error) throw error;
+
+      // Convert DB photos to PhotoLocation format (only those with GPS)
+      const dbPhotos: PhotoLocation[] = (data || [])
+        .filter(p => p.latitude !== null && p.longitude !== null)
+        .map(p => ({
+          id: p.id,
+          filename: p.filename,
+          latitude: p.latitude!,
+          longitude: p.longitude!,
+          timestamp: p.taken_at ? new Date(p.taken_at) : new Date(p.created_at),
+          thumbnailUrl: p.thumbnail_url || '',
+        }));
+
+      setPhotos(dbPhotos);
+    } catch (error) {
+      console.error('Error fetching photos:', error);
+    } finally {
+      setIsFetching(false);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    fetchPhotos();
+  }, [fetchPhotos]);
+
+  // Upload files and save to Supabase
+  const uploadPhotos = useCallback(async (files: File[]): Promise<PhotoLocation[]> => {
+    if (!user) {
+      toast.error('ログインが必要です');
+      return [];
+    }
+
+    setIsLoading(true);
+
+    try {
+      // Parse EXIF from files
+      const parsedPhotos = await parseMultiplePhotos(files, {
+        concurrency: 2,
+        yieldEvery: 3,
+      });
+
+      if (parsedPhotos.length === 0) {
+        toast.error('位置情報のある写真が見つかりませんでした', {
+          description: '位置情報（GPS）がOFFの写真はスキップされます。',
+        });
+        return [];
+      }
+
+      const skipped = files.length - parsedPhotos.length;
+      if (skipped > 0) {
+        toast.message('一部の写真をスキップしました', {
+          description: `読み込み: ${parsedPhotos.length}枚 / スキップ: ${skipped}枚`,
+        });
+      }
+
+      // Upload each photo to storage and save to DB
+      const uploadedPhotos: PhotoLocation[] = [];
+
+      for (const photo of parsedPhotos) {
+        if (!photo.originalFile) continue;
+
+        const file = photo.originalFile;
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${user.id}/${Date.now()}-${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
+
+        // Upload to storage
+        const { error: uploadError } = await supabase.storage
+          .from('photos')
+          .upload(fileName, file);
+
+        if (uploadError) {
+          console.error('Upload error:', uploadError);
+          continue;
+        }
+
+        // Get public URL
+        const { data: urlData } = supabase.storage
+          .from('photos')
+          .getPublicUrl(fileName);
+
+        // Insert photo record
+        const { data: insertedPhoto, error: insertError } = await supabase
+          .from('photos')
+          .insert({
+            user_id: user.id,
+            filename: file.name,
+            storage_path: fileName,
+            thumbnail_url: urlData.publicUrl,
+            latitude: photo.latitude,
+            longitude: photo.longitude,
+            taken_at: photo.timestamp.toISOString(),
+          })
+          .select()
+          .single();
+
+        if (insertError) {
+          console.error('Insert error:', insertError);
+          continue;
+        }
+
+        uploadedPhotos.push({
+          id: insertedPhoto.id,
+          filename: insertedPhoto.filename,
+          latitude: insertedPhoto.latitude!,
+          longitude: insertedPhoto.longitude!,
+          timestamp: new Date(insertedPhoto.taken_at!),
+          thumbnailUrl: insertedPhoto.thumbnail_url || '',
+        });
+      }
+
+      if (uploadedPhotos.length > 0) {
+        setPhotos(prev => [...prev, ...uploadedPhotos]);
+        toast.success(`${uploadedPhotos.length}枚の写真をアップロードしました`);
+      }
+
+      return uploadedPhotos;
+    } catch (error) {
+      console.error('Upload error:', error);
+      toast.error('アップロードに失敗しました');
+      return [];
+    } finally {
+      setIsLoading(false);
+    }
+  }, [user]);
+
+  // Add photos locally (for non-logged-in users or preview only)
+  const addLocalPhotos = useCallback((newPhotos: PhotoLocation[]) => {
+    setPhotos(prev => [...prev, ...newPhotos]);
+  }, []);
+
+  return {
+    photos,
+    isLoading,
+    isFetching,
+    uploadPhotos,
+    addLocalPhotos,
+    refetch: fetchPhotos,
+  };
+};

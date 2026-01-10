@@ -1,7 +1,7 @@
-import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MapPin, Camera, LogIn, Users } from 'lucide-react';
+import { MapPin, Camera, LogIn, Users, Loader2 } from 'lucide-react';
 import PhotoDropzone from '@/components/PhotoDropzone';
 import PhotoMap from '@/components/PhotoMap';
 import StatsPanel from '@/components/StatsPanel';
@@ -9,34 +9,36 @@ import PhotoTimeline from '@/components/PhotoTimeline';
 import GridStatsPanel from '@/components/GridStatsPanel';
 import ViewModeToggle from '@/components/ViewModeToggle';
 import { Button } from '@/components/ui/button';
-import { toast } from '@/components/ui/sonner';
-import { PhotoLocation, ViewMode, DayStats } from '@/types/photo';
+import { ViewMode } from '@/types/photo';
 import { calculateDayStats } from '@/utils/statsCalculator';
 import { GridStats } from '@/utils/gridCalculator';
 import { useAuth } from '@/hooks/useAuth';
+import { usePhotos } from '@/hooks/usePhotos';
 
 const Index = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
-  const [photos, setPhotos] = useState<PhotoLocation[]>([]);
+  const { user, loading: authLoading } = useAuth();
+  const { photos, isLoading, isFetching, uploadPhotos, addLocalPhotos } = usePhotos();
   const [viewMode, setViewMode] = useState<ViewMode>('markers');
-  const [stats, setStats] = useState<DayStats | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
   const [gridStats, setGridStats] = useState<GridStats | null>(null);
   const [highlightedCellId, setHighlightedCellId] = useState<string | null>(null);
 
-  const handlePhotosLoaded = (newPhotos: PhotoLocation[]) => {
-    setIsLoading(true);
-    
-    // Merge with existing photos
-    setPhotos(prev => {
-      const merged = [...prev, ...newPhotos];
-      const newStats = calculateDayStats(merged);
-      setStats(newStats);
-      return merged;
-    });
-    
-    setIsLoading(false);
+  // Calculate stats from photos
+  const stats = useMemo(() => {
+    if (photos.length === 0) return null;
+    return calculateDayStats(photos);
+  }, [photos]);
+
+  const handlePhotosLoaded = async (files: File[]) => {
+    if (user) {
+      // Logged in: upload to Supabase
+      await uploadPhotos(files);
+    } else {
+      // Not logged in: parse locally for preview
+      const { parseMultiplePhotos } = await import('@/utils/exifParser');
+      const parsed = await parseMultiplePhotos(files, { concurrency: 2, yieldEvery: 3 });
+      addLocalPhotos(parsed);
+    }
   };
 
   const hasPhotos = photos.length > 0;
@@ -127,8 +129,8 @@ const Index = () => {
               </motion.div>
 
               <PhotoDropzone 
-                onPhotosLoaded={handlePhotosLoaded}
-                isLoading={isLoading}
+                onFilesSelected={handlePhotosLoaded}
+                isLoading={isLoading || isFetching}
               />
 
               <motion.div
@@ -179,30 +181,10 @@ const Index = () => {
                       multiple
                       accept="image/*"
                       className="hidden"
-                      onChange={async (e) => {
+                      onChange={(e) => {
                         const files = Array.from(e.target.files || []);
                         if (files.length > 0) {
-                          const { parseMultiplePhotos } = await import('@/utils/exifParser');
-                          const newPhotos = await parseMultiplePhotos(files, {
-                            concurrency: 4,
-                            yieldEvery: 5,
-                          });
-
-                          const skipped = files.length - newPhotos.length;
-                          if (newPhotos.length === 0) {
-                            toast.error('位置情報のある写真が見つかりませんでした', {
-                              description: '位置情報（GPS）がOFFの写真や位置情報なしの画像はスキップされます。',
-                            });
-                            return;
-                          }
-
-                          if (skipped > 0) {
-                            toast.message('一部の写真をスキップしました', {
-                              description: `読み込み: ${newPhotos.length}枚 / スキップ: ${skipped}枚`,
-                            });
-                          }
-
-                          handlePhotosLoaded(newPhotos);
+                          handlePhotosLoaded(files);
                         }
                       }}
                     />
