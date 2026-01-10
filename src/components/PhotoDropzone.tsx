@@ -2,6 +2,7 @@ import { useCallback, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Upload, ImageIcon, Loader2 } from 'lucide-react';
 import { parseMultiplePhotos } from '@/utils/exifParser';
+import { toast } from '@/components/ui/sonner';
 import { PhotoLocation } from '@/types/photo';
 
 interface PhotoDropzoneProps {
@@ -35,10 +36,28 @@ const PhotoDropzone = ({ onPhotosLoaded, isLoading = false }: PhotoDropzoneProps
         onProgress: (processed) => setProcessedCount(processed),
       });
 
+      const skipped = files.length - photos.length;
       if (controller.signal.aborted) return;
-      if (photos.length > 0) {
-        onPhotosLoaded(photos);
+
+      if (photos.length === 0) {
+        toast.error('位置情報のある写真が見つかりませんでした', {
+          description: '位置情報（GPS）がOFFの写真や位置情報なしの画像はスキップされます。',
+        });
+        return;
       }
+
+      if (skipped > 0) {
+        toast.message('一部の写真をスキップしました', {
+          description: `読み込み: ${photos.length}枚 / スキップ: ${skipped}枚`,
+        });
+      }
+
+      onPhotosLoaded(photos);
+    } catch (error) {
+      console.error('[EXIF] batch parse failed:', error);
+      toast.error('写真の解析に失敗しました', {
+        description: '別の写真（位置情報ありのJPEG）で試すか、しばらく待ってから再度お試しください。',
+      });
     } finally {
       abortRef.current = null;
       setIsParsing(false);

@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MapPin, Camera } from 'lucide-react';
 import PhotoDropzone from '@/components/PhotoDropzone';
@@ -7,6 +7,7 @@ import StatsPanel from '@/components/StatsPanel';
 import PhotoTimeline from '@/components/PhotoTimeline';
 import GridStatsPanel from '@/components/GridStatsPanel';
 import ViewModeToggle from '@/components/ViewModeToggle';
+import { toast } from '@/components/ui/sonner';
 import { PhotoLocation, ViewMode, DayStats } from '@/types/photo';
 import { calculateDayStats } from '@/utils/statsCalculator';
 import { GridStats } from '@/utils/gridCalculator';
@@ -163,10 +164,26 @@ const Index = () => {
                         const files = Array.from(e.target.files || []);
                         if (files.length > 0) {
                           const { parseMultiplePhotos } = await import('@/utils/exifParser');
-                          const newPhotos = await parseMultiplePhotos(files);
-                          if (newPhotos.length > 0) {
-                            handlePhotosLoaded(newPhotos);
+                          const newPhotos = await parseMultiplePhotos(files, {
+                            concurrency: 4,
+                            yieldEvery: 5,
+                          });
+
+                          const skipped = files.length - newPhotos.length;
+                          if (newPhotos.length === 0) {
+                            toast.error('位置情報のある写真が見つかりませんでした', {
+                              description: '位置情報（GPS）がOFFの写真や位置情報なしの画像はスキップされます。',
+                            });
+                            return;
                           }
+
+                          if (skipped > 0) {
+                            toast.message('一部の写真をスキップしました', {
+                              description: `読み込み: ${newPhotos.length}枚 / スキップ: ${skipped}枚`,
+                            });
+                          }
+
+                          handlePhotosLoaded(newPhotos);
                         }
                       }}
                     />
