@@ -266,12 +266,10 @@ const Index = () => {
                 </motion.div>
               </div>
 
-              {/* News Section - Below Map */}
-              {viewMode !== 'grid' && viewMode !== 'admin' && (
-                <div className="px-4 pb-4">
-                  <NearbyNews photos={displayPhotos} />
-                </div>
-              )}
+              {/* News Section - Below Map (always visible) */}
+              <div className="px-4 pb-4">
+                <NearbyNews photos={displayPhotos} />
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
