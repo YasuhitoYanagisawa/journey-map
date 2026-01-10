@@ -87,16 +87,8 @@ export async function reverseGeocode(
 
     const extractChomeFromAddress = (s: string | null): string | null => {
       if (!s) return null;
-      const normalized = normalizeChome(s);
-      // Match patterns like "弥生町3丁目" or "松庵３丁目"
-      // Look for the last occurrence of a pattern: [町名][数字]丁目
-      const m = normalized.match(/([^\s,、区市町村]+?(?:\d+|[一二三四五六七八九十]+)丁目)(?:[^\d丁]|$)/);
-      if (m?.[1]) {
-        return normalizeChome(m[1]);
-      }
-      // Fallback: just get the part with 丁目
-      const m2 = normalized.match(/([ぁ-んァ-ヶー一-龥a-zA-Z]+\d+丁目)/);
-      return m2?.[1] ? normalizeChome(m2[1]) : null;
+      // Simply normalize and cut at 丁目 - the address text field is already clean
+      return normalizeChome(s);
     };
 
     // Debug: Log API response for understanding structure
@@ -159,7 +151,8 @@ export async function reverseGeocode(
     // Assign prefecture
     prefecture = regionName;
 
-    const chomeFromAddress = extractChomeFromAddress(addressPlaceName || addressName);
+    // Use addressName (text field) directly - it's already clean like "弥生町3丁目13番"
+    const chomeFromAddress = extractChomeFromAddress(addressName);
 
     // Special handling for Tokyo 23 wards and other designated cities:
     // - If locality ends with 区, it's a ward (use as city)
