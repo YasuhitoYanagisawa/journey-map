@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MapPin, Camera, LogIn, Users, Loader2 } from 'lucide-react';
+import { MapPin, Camera, LogIn, LogOut, Users, Loader2 } from 'lucide-react';
 import PhotoDropzone from '@/components/PhotoDropzone';
 import PhotoMap from '@/components/PhotoMap';
 import StatsPanel from '@/components/StatsPanel';
@@ -21,7 +21,7 @@ import { usePhotos } from '@/hooks/usePhotos';
 
 const Index = () => {
   const navigate = useNavigate();
-  const { user, loading: authLoading } = useAuth();
+  const { user, signOut, loading: authLoading } = useAuth();
   const { photos, isLoading, isFetching, uploadPhotos, addLocalPhotos, updateAddressInfo } = usePhotos();
   const [viewMode, setViewMode] = useState<ViewMode>('markers');
   const [gridStats, setGridStats] = useState<GridStats | null>(null);
@@ -105,10 +105,15 @@ const Index = () => {
           
           <div className="flex items-center gap-2">
             {user ? (
-              <Button variant="outline" size="sm" onClick={() => navigate('/feed')}>
-                <Users className="w-4 h-4 mr-2" />
-                フィード
-              </Button>
+              <>
+                <Button variant="outline" size="sm" onClick={() => navigate('/feed')}>
+                  <Users className="w-4 h-4 mr-2" />
+                  フィード
+                </Button>
+                <Button variant="ghost" size="sm" onClick={signOut} title="ログアウト">
+                  <LogOut className="w-4 h-4" />
+                </Button>
+              </>
             ) : (
               <Button variant="outline" size="sm" onClick={() => navigate('/auth')}>
                 <LogIn className="w-4 h-4 mr-2" />
