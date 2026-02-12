@@ -105,7 +105,24 @@ export const useEvents = () => {
     }
 
     try {
-      const rows = searchResults.map(e => ({
+      // Deduplicate against existing events by name + event_start
+      const existingKeys = new Set(
+        events.map(e => `${e.name}|${e.event_start || ''}`.toLowerCase())
+      );
+
+      const uniqueResults = searchResults.filter(e => {
+        const key = `${e.name}|${e.event_start || ''}`.toLowerCase();
+        if (existingKeys.has(key)) return false;
+        existingKeys.add(key); // Also dedupe within batch
+        return true;
+      });
+
+      if (uniqueResults.length === 0) {
+        toast.info('すべてのイベントは既に追加済みです');
+        return 0;
+      }
+
+      const rows = uniqueResults.map(e => ({
         user_id: user.id,
         name: e.name,
         description: e.description,
@@ -129,14 +146,18 @@ export const useEvents = () => {
 
       const newEvents = (data || []) as unknown as EventItem[];
       setEvents(prev => [...prev, ...newEvents]);
-      toast.success(`${newEvents.length}件のイベントを追加しました`);
+      const skipped = searchResults.length - uniqueResults.length;
+      const msg = skipped > 0
+        ? `${newEvents.length}件追加（${skipped}件は重複のためスキップ）`
+        : `${newEvents.length}件のイベントを追加しました`;
+      toast.success(msg);
       return newEvents.length;
     } catch (error) {
       console.error('Add multiple events error:', error);
       toast.error('イベントの追加に失敗しました');
       return 0;
     }
-  }, [user]);
+  }, [user, events]);
 
   const toggleVisited = useCallback(async (eventId: string, visited: boolean) => {
     if (!user) return;
