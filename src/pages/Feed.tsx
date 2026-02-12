@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MapPin, Heart, MessageCircle, Share2, User, Plus, LogOut, Map, MoreVertical, Trash2, Bookmark, Image, Archive, Pencil, Check, X, MapPinPlus } from 'lucide-react';
+import { MapPin, Heart, MessageCircle, Share2, User, Plus, LogOut, Map, MoreVertical, Trash2, Bookmark, Image, Archive, Pencil, Check, X, MapPinPlus, CalendarDays } from 'lucide-react';
 import InlineUploadForm from '@/components/InlineUploadForm';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import LocationPicker from '@/components/LocationPicker';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow, format } from 'date-fns';
 import { ja } from 'date-fns/locale';
 import { renderWithHashtags } from '@/utils/hashtagUtils';
 
@@ -468,6 +468,12 @@ const Feed = () => {
                     <p className="font-medium">
                       {photo.profiles?.display_name || photo.profiles?.username || '名無しさん'}
                     </p>
+                    {photo.taken_at && (
+                      <p className="text-xs text-muted-foreground flex items-center gap-1">
+                        <CalendarDays className="w-3 h-3" />
+                        {format(new Date(photo.taken_at), 'yyyy年M月d日', { locale: ja })}
+                      </p>
+                    )}
                     {photo.latitude && photo.longitude && (
                       <p className="text-xs text-muted-foreground flex items-center gap-1">
                         <MapPin className="w-3 h-3" />
