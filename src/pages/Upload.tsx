@@ -1,9 +1,10 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { MapPin, Upload as UploadIcon, Image, ArrowLeft, X } from 'lucide-react';
+import { MapPin, Upload as UploadIcon, Image, ArrowLeft, X, Sparkles, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
 import { toast } from '@/components/ui/sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
@@ -19,6 +20,10 @@ const Upload = () => {
   const [caption, setCaption] = useState('');
   const [gpsData, setGpsData] = useState<{ latitude: number; longitude: number; timestamp: Date | null } | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [aiTags, setAiTags] = useState<string[]>([]);
+  const [aiDescription, setAiDescription] = useState('');
+  const [aiSubjects, setAiSubjects] = useState<string[]>([]);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -50,6 +55,39 @@ const Upload = () => {
     }
 
     setSelectedFile(file);
+  };
+
+  const handleAnalyzePhoto = async () => {
+    if (!preview) return;
+    setAnalyzing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('analyze-photo', {
+        body: { imageUrl: preview },
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      const analysis = data.analysis;
+      if (analysis?.tags?.length > 0) {
+        setAiTags(analysis.tags);
+        setAiDescription(analysis.description || '');
+        setAiSubjects(analysis.subjects || []);
+
+        if (!caption.trim()) {
+          const tagString = analysis.tags.map((t: string) => `#${t}`).join(' ');
+          setCaption(analysis.description ? `${analysis.description}\n${tagString}` : tagString);
+        }
+        toast.success('AI分析完了！タグを生成しました');
+      } else {
+        toast.info('タグを生成できませんでした');
+      }
+    } catch (error) {
+      console.error('AI analysis error:', error);
+      toast.error('AI分析に失敗しました');
+    } finally {
+      setAnalyzing(false);
+    }
   };
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
@@ -123,6 +161,9 @@ const Upload = () => {
     setPreview(null);
     setGpsData(null);
     setCaption('');
+    setAiTags([]);
+    setAiDescription('');
+    setAiSubjects([]);
   };
 
   if (loading) {
@@ -219,11 +260,59 @@ const Upload = () => {
               </div>
             )}
 
+            {/* AI Auto-Tag Button */}
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={handleAnalyzePhoto}
+              disabled={analyzing}
+            >
+              {analyzing ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  AI分析中...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4 mr-2" />
+                  AIで自動タグ付け
+                </>
+              )}
+            </Button>
+
+            {/* AI Results */}
+            {aiTags.length > 0 && (
+              <div className="glass-panel p-4 space-y-3">
+                <p className="text-sm font-medium flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-primary" />
+                  AI分析結果
+                </p>
+                {aiDescription && (
+                  <p className="text-sm text-muted-foreground">{aiDescription}</p>
+                )}
+                {aiSubjects.length > 0 && (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">被写体</p>
+                    <div className="flex flex-wrap gap-1">
+                      {aiSubjects.map((subject, i) => (
+                        <Badge key={i} variant="secondary">{subject}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <div className="flex flex-wrap gap-1">
+                  {aiTags.map((tag, i) => (
+                    <Badge key={i} variant="outline" className="text-xs">#{tag}</Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Caption */}
             <div className="glass-panel p-4 space-y-2">
               <label className="text-sm font-medium">キャプション</label>
               <Textarea
-                placeholder="写真について書く..."
+                placeholder="写真について書く... #ハッシュタグも使えます"
                 value={caption}
                 onChange={(e) => setCaption(e.target.value)}
                 className="min-h-[100px]"

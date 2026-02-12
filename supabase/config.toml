@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.search-events]
 verify_jwt = false
+
+[functions.analyze-photo]
+verify_jwt = false
