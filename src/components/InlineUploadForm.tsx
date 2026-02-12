@@ -32,7 +32,7 @@ const InlineUploadForm = ({ userId, onUploaded }: InlineUploadFormProps) => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [showLocationPicker, setShowLocationPicker] = useState<number | null>(null);
 
-  const processFiles = async (files: File[]) => {
+  const processFiles = useCallback(async (files: File[]) => {
     const newPending: PendingFile[] = [];
 
     for (const file of files) {
@@ -56,13 +56,14 @@ const InlineUploadForm = ({ userId, onUploaded }: InlineUploadFormProps) => {
     }
 
     setPendingFiles(prev => [...prev, ...newPending]);
-  };
+  }, []);
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
+    console.log('onDrop called with', acceptedFiles.length, 'files');
     if (acceptedFiles.length > 0) {
       await processFiles(acceptedFiles);
     }
-  }, []);
+  }, [processFiles]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -211,16 +212,36 @@ const InlineUploadForm = ({ userId, onUploaded }: InlineUploadFormProps) => {
 
       {/* Dropzone - always show when not uploading */}
       {!uploading && (
-        <div
-          {...getRootProps()}
-          className={`border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors
-            ${isDragActive ? 'border-primary/50 bg-primary/5' : 'border-border hover:border-primary/30'}`}
-        >
-          <input {...getInputProps()} />
-          <Upload className="w-6 h-6 text-muted-foreground mx-auto mb-1" />
-          <p className="text-sm text-muted-foreground">
-            {pendingFiles.length > 0 ? '写真を追加' : '写真を選択またはドロップ（複数可）'}
-          </p>
+        <div className="space-y-2">
+          <div
+            {...getRootProps()}
+            className={`border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors
+              ${isDragActive ? 'border-primary/50 bg-primary/5' : 'border-border hover:border-primary/30'}`}
+          >
+            <input {...getInputProps()} />
+            <Upload className="w-6 h-6 text-muted-foreground mx-auto mb-1" />
+            <p className="text-sm text-muted-foreground">
+              {pendingFiles.length > 0 ? '写真を追加（ドラッグ＆ドロップ）' : '写真をドラッグ＆ドロップ'}
+            </p>
+          </div>
+          <label className="flex items-center justify-center gap-2 w-full px-3 py-2 text-sm border border-border rounded-lg cursor-pointer hover:bg-muted transition-colors">
+            <Image className="w-4 h-4" />
+            ファイルを選択（複数可）
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={(e) => {
+                const files = Array.from(e.target.files || []);
+                console.log('File input onChange:', files.length, 'files');
+                if (files.length > 0) {
+                  processFiles(files);
+                }
+                e.target.value = '';
+              }}
+            />
+          </label>
         </div>
       )}
 
