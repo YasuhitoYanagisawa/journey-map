@@ -12,10 +12,10 @@ serve(async (req) => {
 
   try {
     const { prefecture, city, period } = await req.json();
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    const GOOGLE_GEMINI_API_KEY = Deno.env.get("GOOGLE_GEMINI_API_KEY");
 
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
+    if (!GOOGLE_GEMINI_API_KEY) {
+      throw new Error("GOOGLE_GEMINI_API_KEY is not configured");
     }
 
     const locationQuery = [prefecture, city].filter(Boolean).join(" ");
@@ -62,49 +62,43 @@ serve(async (req) => {
 
     console.log("Searching events for:", locationQuery, periodQuery);
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        messages: [
-          {
-            role: "system",
-            content: "あなたは日本のお祭り・イベント情報を検索する優秀なAIです。指定された地域と時期のお祭りやイベントを調べ、正確なJSON形式で返してください。必ず有効なJSONのみを返してください。コードブロック(```)は使用しないでください。",
-          },
-          {
-            role: "user",
-            content: prompt,
-          },
-        ],
-      }),
-    });
+    // Call Gemini API directly with Google AI Studio key
+    const systemInstruction = "あなたは日本のお祭り・イベント情報を検索する優秀なAIです。指定された地域と時期のお祭りやイベントを調べ、正確なJSON形式で返してください。必ず有効なJSONのみを返してください。コードブロック(```)は使用しないでください。";
+
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GOOGLE_GEMINI_API_KEY}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: systemInstruction }] },
+          contents: [
+            {
+              role: "user",
+              parts: [{ text: prompt }],
+            },
+          ],
+        }),
+      }
+    );
 
     if (!response.ok) {
+      const errorText = await response.text();
+      console.error("Gemini API error:", response.status, errorText);
+
       if (response.status === 429) {
         return new Response(
           JSON.stringify({ error: "レート制限に達しました。しばらく待ってから再試行してください。" }),
           { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-      if (response.status === 402) {
-        return new Response(
-          JSON.stringify({ error: "AI利用のクレジットが不足しています。" }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      const errorText = await response.text();
-      console.error("AI gateway error:", response.status, errorText);
-      throw new Error(`AI gateway error: ${response.status}`);
+      throw new Error(`Gemini API error: ${response.status}`);
     }
 
     const data = await response.json();
-    const content = data.choices?.[0]?.message?.content || "";
+    const content = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
-    console.log("AI response content:", content);
+    console.log("Gemini response content:", content);
 
     // Parse JSON from response
     let events: any[] = [];
