@@ -1,1 +1,7 @@
 project_id = "vjklymicopqhwyohegwq"
+
+[functions.search-news]
+verify_jwt = false
+
+[functions.search-events]
+verify_jwt = false
