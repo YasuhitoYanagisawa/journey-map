@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MapPin, Camera, LogIn, LogOut, Users, Loader2, CalendarDays, ListTodo, Eye, EyeOff } from 'lucide-react';
+import { MapPin, Camera, LogIn, LogOut, Users, Loader2, CalendarDays, ListTodo, Eye, EyeOff, Plus } from 'lucide-react';
 import PhotoDropzone from '@/components/PhotoDropzone';
 import PhotoMap from '@/components/PhotoMap';
 import StatsPanel from '@/components/StatsPanel';
@@ -152,6 +152,10 @@ const Index = () => {
                 <Button variant="outline" size="sm" onClick={() => navigate('/feed')}>
                   <Users className="w-4 h-4 mr-2" />
                   フィード
+                </Button>
+                <Button variant="default" size="sm" onClick={() => navigate('/upload')} title="写真をアップロード">
+                  <Plus className="w-4 h-4 mr-2" />
+                  投稿
                 </Button>
                 <Button variant="ghost" size="sm" onClick={signOut} title="ログアウト">
                   <LogOut className="w-4 h-4" />
