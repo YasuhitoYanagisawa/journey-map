@@ -1,14 +1,13 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MapPin, Camera, LogIn, LogOut, Users, Loader2, CalendarDays, ListTodo, Eye, EyeOff, Sparkles } from 'lucide-react';
+import { MapPin, Camera, LogIn, LogOut, Users, Loader2, CalendarDays, ListTodo, Eye, EyeOff } from 'lucide-react';
 import PhotoDropzone from '@/components/PhotoDropzone';
 import PhotoMap from '@/components/PhotoMap';
 import StatsPanel from '@/components/StatsPanel';
 import PhotoTimeline from '@/components/PhotoTimeline';
 import NearbyNews from '@/components/NearbyNews';
 import LayerToggle from '@/components/LayerToggle';
-import EventSearchPanel from '@/components/EventSearchPanel';
 import EventTaskList from '@/components/EventTaskList';
 
 import AdminStatsPanel from '@/components/AdminStatsPanel';
@@ -29,7 +28,7 @@ const Index = () => {
   const navigate = useNavigate();
   const { user, signOut, loading: authLoading } = useAuth();
   const { photos, isLoading, isFetching, uploadPhotos, addLocalPhotos, updateAddressInfo } = usePhotos();
-  const { events, upcomingEvents, visitedEvents, isLoading: eventsLoading, searchEvents, addEvent, addMultipleEvents, toggleVisited, deleteEvent, autoMatchPhotos } = useEvents();
+  const { events, upcomingEvents, visitedEvents, addMultipleEvents, toggleVisited, deleteEvent, autoMatchPhotos } = useEvents();
   
   const [viewMode, setViewMode] = useState<ViewMode>('markers');
   const [highlightedAreaId, setHighlightedAreaId] = useState<string | null>(null);
@@ -82,20 +81,6 @@ const Index = () => {
       addLocalPhotos(parsed);
     }
   };
-
-  const handleAddManual = useCallback(async (result: Partial<import('@/types/event').EventSearchResult>) => {
-    await addEvent({
-      name: result.name || '',
-      description: result.description,
-      location_name: result.location_name,
-      prefecture: result.prefecture,
-      city: result.city,
-      event_start: result.event_start,
-      event_end: result.event_end,
-      source: 'manual',
-    });
-    toast.success('イベントを追加しました');
-  }, [addEvent]);
 
   const handleAutoMatch = useCallback(async () => {
     if (photos.length === 0) {
@@ -265,12 +250,14 @@ const Index = () => {
               exit={{ opacity: 0 }}
               className="flex flex-col"
             >
-              {/* News Section - Top */}
-              {hasPhotos && (
-                <div className="px-4 pt-4">
-                  <NearbyNews photos={displayPhotos} />
-                </div>
-              )}
+              {/* News + Events Section - Top */}
+              <div className="px-4 pt-4">
+                <NearbyNews
+                  photos={displayPhotos}
+                  onAddEvents={addMultipleEvents}
+                  isLoggedIn={!!user}
+                />
+              </div>
 
               {/* Map + Sidebar Row */}
               <div className="h-[calc(100vh-5rem)] flex">
@@ -379,15 +366,6 @@ const Index = () => {
                     </>
                   ) : (
                     <>
-                      {/* Event Search */}
-                      <EventSearchPanel
-                        onSearch={searchEvents}
-                        onAddResults={addMultipleEvents}
-                        onAddManual={handleAddManual}
-                        isLoading={eventsLoading}
-                        isLoggedIn={!!user}
-                      />
-
                       {/* Event Task List */}
                       <div className="glass-panel p-4">
                         <div className="flex items-center justify-between mb-3">
