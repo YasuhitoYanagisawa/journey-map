@@ -21,8 +21,7 @@ interface NearbyNewsProps {
   isLoggedIn?: boolean;
 }
 
-// Module-level guard to prevent re-fetching across remounts  
-let globalAutoFetched = false;
+// No module-level guard - use component state only
 
 const NearbyNews = ({ photos, onAddEvents, isLoggedIn }: NearbyNewsProps) => {
   const [news, setNews] = useState<NewsItem[]>([]);
@@ -258,9 +257,8 @@ const NearbyNews = ({ photos, onAddEvents, isLoggedIn }: NearbyNewsProps) => {
 
   // Auto-fetch on mount: get current location + today's info
   useEffect(() => {
-    if (hasAutoFetched.current || globalAutoFetched) return;
+    if (hasAutoFetched.current) return;
     hasAutoFetched.current = true;
-    globalAutoFetched = true;
     
     const autoFetch = async () => {
       if (!navigator.geolocation) return;
