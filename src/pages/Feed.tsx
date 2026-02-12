@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MapPin, Heart, MessageCircle, Share2, User, Plus, LogOut, Map, MoreVertical, Trash2, Bookmark, Image, Archive, Pencil, Check, X } from 'lucide-react';
+import InlineUploadForm from '@/components/InlineUploadForm';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -391,6 +392,13 @@ const Feed = () => {
 
       {/* Main Content */}
       <main className="pt-20 pb-8 max-w-lg mx-auto px-4">
+        {/* Inline Upload Form */}
+        {user && (
+          <div className="mb-6">
+            <InlineUploadForm userId={user.id} onUploaded={fetchPhotos} />
+          </div>
+        )}
+
         {photos.length === 0 ? (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -402,12 +410,8 @@ const Feed = () => {
             </div>
             <h2 className="text-xl font-semibold mb-2">まだ写真がありません</h2>
             <p className="text-muted-foreground mb-6">
-              最初の写真をアップロードしましょう！
+              上のフォームから最初の写真をアップロードしましょう！
             </p>
-            <Button onClick={() => navigate('/upload')}>
-              <Plus className="w-4 h-4 mr-2" />
-              写真をアップロード
-            </Button>
           </motion.div>
         ) : (
           <div className="space-y-6">
