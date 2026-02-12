@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Newspaper, ExternalLink, Loader2, AlertCircle, RefreshCw, MapPin, Calendar, Navigation } from 'lucide-react';
 import { PhotoLocation } from '@/types/photo';
@@ -36,6 +36,8 @@ const NearbyNews = ({ photos }: NearbyNewsProps) => {
   });
   const [isGettingLocation, setIsGettingLocation] = useState(false);
   const [currentLocationName, setCurrentLocationName] = useState<string | null>(null);
+  
+  const hasAutoFetched = useRef(false);
 
   const handleNewsClick = (item: NewsItem) => {
     setSelectedNews(item);
@@ -198,6 +200,46 @@ const NearbyNews = ({ photos }: NearbyNewsProps) => {
 
   const searchParamsFromPhotos = getSearchParamsFromPhotos();
   const hasPhotoParams = !!searchParamsFromPhotos;
+
+  // Auto-fetch on mount: get current location + today's news
+  useEffect(() => {
+    if (hasAutoFetched.current) return;
+    hasAutoFetched.current = true;
+    
+    const autoFetch = async () => {
+      if (!navigator.geolocation) return;
+      
+      setIsGettingLocation(true);
+      try {
+        const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            enableHighAccuracy: false,
+            timeout: 8000,
+            maximumAge: 300000,
+          });
+        });
+        
+        const { latitude, longitude } = position.coords;
+        const locationName = await reverseGeocode(latitude, longitude);
+        
+        if (locationName) {
+          setManualLocation(locationName);
+          setCurrentLocationName(locationName);
+          // Auto-search with current location + today
+          fetchNews({
+            location: locationName,
+            date: new Date().toISOString(),
+          });
+        }
+      } catch (err) {
+        console.log('Auto-location skipped:', err);
+      } finally {
+        setIsGettingLocation(false);
+      }
+    };
+    
+    autoFetch();
+  }, []);
 
   return (
     <motion.div

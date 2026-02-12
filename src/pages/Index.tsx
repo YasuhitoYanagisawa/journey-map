@@ -212,6 +212,11 @@ const Index = () => {
               exit={{ opacity: 0 }}
               className="flex flex-col"
             >
+              {/* News Section - Top */}
+              <div className="px-4 pt-4">
+                <NearbyNews photos={displayPhotos} />
+              </div>
+
               {/* Map + Sidebar Row */}
               <div className="h-[calc(100vh-5rem)] flex">
                 {/* Map Area */}
@@ -285,11 +290,6 @@ const Index = () => {
                   )}
                   {viewMode !== 'grid' && viewMode !== 'admin' && <PhotoTimeline photos={displayPhotos} />}
                 </motion.div>
-              </div>
-
-              {/* News Section - Below Map (always visible) */}
-              <div className="px-4 pb-4">
-                <NearbyNews photos={displayPhotos} />
               </div>
             </motion.div>
           )}
