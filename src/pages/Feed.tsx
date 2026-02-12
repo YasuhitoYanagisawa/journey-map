@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MapPin, Heart, MessageCircle, Share2, User, Plus, LogOut, Map, MoreVertical, Trash2, Bookmark, Image, Archive } from 'lucide-react';
+import { MapPin, Heart, MessageCircle, Share2, User, Plus, LogOut, Map, MoreVertical, Trash2, Bookmark, Image, Archive, Pencil, Check, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -12,6 +12,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { formatDistanceToNow } from 'date-fns';
 import { ja } from 'date-fns/locale';
+import { renderWithHashtags } from '@/utils/hashtagUtils';
 
 interface Photo {
   id: string;
@@ -36,6 +37,7 @@ interface Photo {
 
 interface Comment {
   id: string;
+  user_id: string;
   content: string;
   created_at: string;
   profiles?: {
@@ -55,6 +57,8 @@ const Feed = () => {
   const [submittingComment, setSubmittingComment] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Photo | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [editingComment, setEditingComment] = useState<string | null>(null);
+  const [editCommentText, setEditCommentText] = useState('');
 
   useEffect(() => {
     if (!loading && !user) {
@@ -201,6 +205,7 @@ const Feed = () => {
 
       const commentsWithProfiles: Comment[] = (commentsRaw || []).map(c => ({
         id: c.id,
+        user_id: c.user_id,
         content: c.content,
         created_at: c.created_at,
         profiles: profilesMap[c.user_id] || null,
@@ -249,6 +254,7 @@ const Feed = () => {
 
       const newCommentObj: Comment = {
         id: data.id,
+        user_id: data.user_id,
         content: data.content,
         created_at: data.created_at,
         profiles: profileData || null,
@@ -292,6 +298,29 @@ const Feed = () => {
     } finally {
       setDeleting(false);
       setDeleteTarget(null);
+    }
+  };
+  const handleEditComment = async (photoId: string, commentId: string) => {
+    if (!user || !editCommentText.trim()) return;
+    try {
+      const { error } = await supabase
+        .from('comments')
+        .update({ content: editCommentText.trim() })
+        .eq('id', commentId)
+        .eq('user_id', user.id);
+      if (error) throw error;
+      setComments(prev => ({
+        ...prev,
+        [photoId]: prev[photoId]?.map(c =>
+          c.id === commentId ? { ...c, content: editCommentText.trim() } : c
+        ) || [],
+      }));
+      setEditingComment(null);
+      setEditCommentText('');
+      toast.success('コメントを編集しました');
+    } catch (error) {
+      console.error('Error editing comment:', error);
+      toast.error('コメントの編集に失敗しました');
     }
   };
 
@@ -468,13 +497,13 @@ const Feed = () => {
                     </button>
                   </div>
 
-                  {/* Caption */}
+                  {/* Caption with hashtags */}
                   {photo.caption && (
                     <p className="text-sm mb-3">
                       <span className="font-medium mr-2">
                         {photo.profiles?.display_name || '名無しさん'}
                       </span>
-                      {photo.caption}
+                      {renderWithHashtags(photo.caption)}
                     </p>
                   )}
 
@@ -489,23 +518,58 @@ const Feed = () => {
                       >
                         {/* Comments List */}
                         {comments[photo.id]?.map((comment) => (
-                          <div key={comment.id} className="flex gap-2">
-                            <Avatar className="w-6 h-6">
+                          <div key={comment.id} className="flex gap-2 group/comment">
+                            <Avatar className="w-6 h-6 shrink-0">
                               <AvatarImage src={comment.profiles?.avatar_url || undefined} />
                               <AvatarFallback>
                                 <User className="w-3 h-3" />
                               </AvatarFallback>
                             </Avatar>
-                            <div className="flex-1">
-                              <p className="text-sm">
-                                <span className="font-medium mr-2">
-                                  {comment.profiles?.display_name || '名無しさん'}
-                                </span>
-                                {comment.content}
-                              </p>
-                              <p className="text-xs text-muted-foreground">
-                                {formatDistanceToNow(new Date(comment.created_at), { addSuffix: true, locale: ja })}
-                              </p>
+                            <div className="flex-1 min-w-0">
+                              {editingComment === comment.id ? (
+                                <div className="flex gap-1 items-start">
+                                  <Textarea
+                                    value={editCommentText}
+                                    onChange={(e) => setEditCommentText(e.target.value)}
+                                    className="min-h-[40px] text-sm flex-1"
+                                    autoFocus
+                                  />
+                                  <button
+                                    onClick={() => handleEditComment(photo.id, comment.id)}
+                                    className="p-1 text-primary hover:bg-primary/10 rounded"
+                                  >
+                                    <Check className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => { setEditingComment(null); setEditCommentText(''); }}
+                                    className="p-1 text-muted-foreground hover:bg-muted rounded"
+                                  >
+                                    <X className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <>
+                                  <p className="text-sm">
+                                    <span className="font-medium mr-2">
+                                      {comment.profiles?.display_name || '名無しさん'}
+                                    </span>
+                                    {renderWithHashtags(comment.content)}
+                                  </p>
+                                  <div className="flex items-center gap-2">
+                                    <p className="text-xs text-muted-foreground">
+                                      {formatDistanceToNow(new Date(comment.created_at), { addSuffix: true, locale: ja })}
+                                    </p>
+                                    {user?.id === comment.user_id && (
+                                      <button
+                                        onClick={() => { setEditingComment(comment.id); setEditCommentText(comment.content); }}
+                                        className="text-xs text-muted-foreground hover:text-primary opacity-0 group-hover/comment:opacity-100 transition-opacity"
+                                      >
+                                        <Pencil className="w-3 h-3" />
+                                      </button>
+                                    )}
+                                  </div>
+                                </>
+                              )}
                             </div>
                           </div>
                         ))}
