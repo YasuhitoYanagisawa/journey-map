@@ -21,11 +21,19 @@ serve(async (req) => {
     const locationQuery = [prefecture, city].filter(Boolean).join(" ");
     const periodQuery = period || "今後数ヶ月";
 
+    // Build today's date string in JST for filtering
+    const now = new Date();
+    const jstOffset = 9 * 60 * 60 * 1000;
+    const jstNow = new Date(now.getTime() + jstOffset);
+    const todayStr = jstNow.toISOString().split('T')[0]; // YYYY-MM-DD in JST
+
     const prompt = `以下の条件でお祭り・イベント情報をウェブで調べて、必ず以下のJSON形式のリストのみを返してください。
 
 条件:
 - 場所: ${locationQuery}
 - 時期: ${periodQuery}
+- 今日の日付: ${todayStr}
+- 重要: 今日(${todayStr})以降に開催されるイベントのみを返してください。過去のイベントは絶対に含めないでください。
 
 重要：各イベントの正確な住所と緯度経度を調べて含めてください。
 他の文章・説明・補足文・装飾・コードブロックなどは一切追加しないでください。
@@ -106,7 +114,7 @@ serve(async (req) => {
       events = [];
     }
 
-    // Validate and clean events
+    // Validate, clean, and filter out past events
     events = events
       .filter((e: any) => e.name && (e.latitude || e.longitude))
       .map((e: any) => ({
@@ -120,7 +128,13 @@ serve(async (req) => {
         event_end: e.event_end || null,
         latitude: Number(e.latitude) || null,
         longitude: Number(e.longitude) || null,
-      }));
+      }))
+      .filter((e: any) => {
+        // Filter out events that have already ended
+        const endDate = e.event_end || e.event_start;
+        if (!endDate) return true; // Keep events without dates
+        return endDate >= todayStr;
+      });
 
     return new Response(JSON.stringify({ events }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

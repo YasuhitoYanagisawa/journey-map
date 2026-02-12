@@ -249,14 +249,8 @@ const Index = () => {
               exit={{ opacity: 0 }}
               className="flex flex-col"
             >
-              {/* News + Events Section - Above Map */}
-              <div className="px-4 pt-4">
-                <NearbyNews
-                  photos={displayPhotos}
-                  onAddEvents={addMultipleEvents}
-                  isLoggedIn={!!user}
-                />
-              </div>
+
+
 
               {/* Map + Sidebar Row */}
               <div className="h-[calc(100vh-5rem)] flex">
@@ -388,6 +382,15 @@ const Index = () => {
                     </>
                   )}
                 </motion.div>
+              </div>
+
+              {/* News + Events Section - Below Map */}
+              <div className="px-4 pb-4">
+                <NearbyNews
+                  photos={displayPhotos}
+                  onAddEvents={addMultipleEvents}
+                  isLoggedIn={!!user}
+                />
               </div>
             </motion.div>
           )}
