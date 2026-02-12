@@ -440,8 +440,11 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId, filt
           featureCollection.features.forEach((f: any) => {
             const geom = f?.geometry;
             if (!geom) return;
-            const isTokyo = f.properties?.name === '東京都';
-            extendAny(geom.coordinates, hasTokyoFeature && isTokyo);
+            const name = f.properties?.name || '';
+            // Skip Tokyo islands entirely from bounds; also filter mainland Tokyo coords
+            if (name === '東京都（諸島部）') return;
+            const isTokyo = name === '東京都';
+            extendAny(geom.coordinates, isTokyo);
           });
 
           if (!bounds.isEmpty()) {
