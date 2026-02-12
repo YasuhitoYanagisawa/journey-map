@@ -1056,7 +1056,25 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId, filt
 
       eventMarkersRef.current.push(marker);
     });
-  }, [events, showEvents, isTokenSet, mapLoaded, onEventSelect]);
+
+    // Fit map bounds to include all event markers
+    if (eventsWithLocation.length > 0 && map.current) {
+      const bounds = new mapboxgl.LngLatBounds();
+      eventsWithLocation.forEach(e => {
+        if (e.latitude && e.longitude) bounds.extend([e.longitude, e.latitude]);
+      });
+      // Also include existing photo markers if any
+      const displayedPhotos = filteredIndices ? filteredIndices.map(i => photos[i]).filter(Boolean) : photos;
+      if (showPhotos && displayedPhotos.length > 0) {
+        displayedPhotos.forEach(p => {
+          if (p.latitude && p.longitude) bounds.extend([p.longitude, p.latitude]);
+        });
+      }
+      if (!bounds.isEmpty()) {
+        map.current.fitBounds(bounds, { padding: 60, maxZoom: 12 });
+      }
+    }
+  }, [events, showEvents, isTokenSet, mapLoaded, onEventSelect, photos, filteredIndices, showPhotos]);
 
   if (!isTokenSet) {
     return (

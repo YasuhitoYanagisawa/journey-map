@@ -19,7 +19,12 @@ serve(async (req) => {
     }
 
     const locationQuery = [prefecture, city].filter(Boolean).join(" ");
-    const periodQuery = period || "今後数ヶ月";
+    const periodQuery = period || "今後2ヶ月以内";
+
+    // Calculate the date 2 months from now for strict filtering
+    const twoMonthsLater = new Date(now.getTime() + jstOffset);
+    twoMonthsLater.setMonth(twoMonthsLater.getMonth() + 2);
+    const maxDateStr = twoMonthsLater.toISOString().split('T')[0];
 
     // Build today's date string in JST for filtering
     const now = new Date();
@@ -33,7 +38,7 @@ serve(async (req) => {
 - 場所: ${locationQuery}
 - 時期: ${periodQuery}
 - 今日の日付: ${todayStr}
-- 重要: 今日(${todayStr})以降に開催されるイベントのみを返してください。過去のイベントは絶対に含めないでください。
+- 重要: 今日(${todayStr})以降、かつ${maxDateStr}以前に開催されるイベントのみを返してください。過去のイベントや2ヶ月以上先のイベントは絶対に含めないでください。
 
 重要：各イベントの正確な住所と緯度経度を調べて含めてください。
 他の文章・説明・補足文・装飾・コードブロックなどは一切追加しないでください。
@@ -130,10 +135,13 @@ serve(async (req) => {
         longitude: Number(e.longitude) || null,
       }))
       .filter((e: any) => {
-        // Filter out events that have already ended
+        // Filter out past events and events more than 2 months away
+        const startDate = e.event_start;
         const endDate = e.event_end || e.event_start;
-        if (!endDate) return true; // Keep events without dates
-        return endDate >= todayStr;
+        if (!endDate && !startDate) return true;
+        if (endDate && endDate < todayStr) return false; // Already ended
+        if (startDate && startDate > maxDateStr) return false; // Too far in the future
+        return true;
       });
 
     return new Response(JSON.stringify({ events }), {
