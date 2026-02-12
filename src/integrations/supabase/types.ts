@@ -46,6 +46,77 @@ export type Database = {
           },
         ]
       }
+      events: {
+        Row: {
+          city: string | null
+          created_at: string
+          description: string | null
+          event_end: string | null
+          event_start: string | null
+          highlights: string | null
+          id: string
+          latitude: number | null
+          location_name: string | null
+          longitude: number | null
+          name: string
+          prefecture: string | null
+          source: string
+          updated_at: string
+          user_id: string
+          visited: boolean
+          visited_at: string | null
+          visited_photo_id: string | null
+        }
+        Insert: {
+          city?: string | null
+          created_at?: string
+          description?: string | null
+          event_end?: string | null
+          event_start?: string | null
+          highlights?: string | null
+          id?: string
+          latitude?: number | null
+          location_name?: string | null
+          longitude?: number | null
+          name: string
+          prefecture?: string | null
+          source?: string
+          updated_at?: string
+          user_id: string
+          visited?: boolean
+          visited_at?: string | null
+          visited_photo_id?: string | null
+        }
+        Update: {
+          city?: string | null
+          created_at?: string
+          description?: string | null
+          event_end?: string | null
+          event_start?: string | null
+          highlights?: string | null
+          id?: string
+          latitude?: number | null
+          location_name?: string | null
+          longitude?: number | null
+          name?: string
+          prefecture?: string | null
+          source?: string
+          updated_at?: string
+          user_id?: string
+          visited?: boolean
+          visited_at?: string | null
+          visited_photo_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "events_visited_photo_id_fkey"
+            columns: ["visited_photo_id"]
+            isOneToOne: false
+            referencedRelation: "photos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       follows: {
         Row: {
           created_at: string
