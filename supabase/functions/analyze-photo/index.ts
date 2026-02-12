@@ -49,7 +49,8 @@ serve(async (req) => {
             {
               parts: [
                 {
-                  text: `この写真を分析して、以下のJSON形式で結果を返してください。コードブロックや説明文は不要で、JSONのみを返してください。
+                  text: `この写真を分析して、以下のJSON形式で結果を返してください。
+重要: コードブロック(\`\`\`json)で囲まないでください。純粋なJSONのみを返してください。説明文やコメントも不要です。
 
 {
   "tags": ["タグ1", "タグ2", "タグ3"],
@@ -94,15 +95,26 @@ serve(async (req) => {
 
     console.log("Gemini response:", content);
 
-    // Parse JSON from response
+    // Parse JSON from response - strip markdown code blocks and clean
     let analysis = { tags: [], description: "", subjects: [], scene: "", mood: "" };
     try {
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      // Remove markdown code block wrappers
+      let cleaned = content.replace(/```(?:json)?\s*/g, "").replace(/```\s*/g, "").trim();
+      const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
-        analysis = JSON.parse(jsonMatch[0]);
+        // Remove any non-JSON text that Gemini might inject inside arrays
+        let jsonStr = jsonMatch[0];
+        // Fix arrays that have text injected between elements
+        jsonStr = jsonStr.replace(/,\s*[^"\[\]{},:\s][^,\]]*(?=\s*\])/g, "");
+        analysis = JSON.parse(jsonStr);
       }
     } catch (parseError) {
       console.error("Failed to parse analysis JSON:", parseError);
+      // Fallback: try to extract tags manually
+      const tagMatches = content.match(/"([^"]+)"/g);
+      if (tagMatches && tagMatches.length > 0) {
+        analysis.tags = tagMatches.slice(0, 10).map((t: string) => t.replace(/"/g, ""));
+      }
     }
 
     return new Response(JSON.stringify({ analysis }), {
