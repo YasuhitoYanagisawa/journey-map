@@ -1,10 +1,11 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { MapPin, Upload as UploadIcon, Image, ArrowLeft, X, Sparkles, Loader2, MapPinPlus } from 'lucide-react';
+import { MapPin, Upload as UploadIcon, Image, ArrowLeft, X, Sparkles, Loader2, MapPinPlus, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
 import { toast } from '@/components/ui/sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
@@ -13,19 +14,21 @@ import { reverseGeocode } from '@/utils/reverseGeocode';
 import { useDropzone } from 'react-dropzone';
 import LocationPicker from '@/components/LocationPicker';
 
+interface PendingFile {
+  file: File;
+  preview: string;
+  gpsData: { latitude: number; longitude: number; timestamp: Date | null } | null;
+  caption: string;
+  status: 'pending' | 'uploading' | 'done' | 'error';
+}
+
 const Upload = () => {
   const navigate = useNavigate();
   const { user, loading } = useAuth();
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState<string | null>(null);
-  const [caption, setCaption] = useState('');
-  const [gpsData, setGpsData] = useState<{ latitude: number; longitude: number; timestamp: Date | null } | null>(null);
+  const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
   const [uploading, setUploading] = useState(false);
-  const [analyzing, setAnalyzing] = useState(false);
-  const [aiTags, setAiTags] = useState<string[]>([]);
-  const [aiDescription, setAiDescription] = useState('');
-  const [aiSubjects, setAiSubjects] = useState<string[]>([]);
-  const [showLocationPicker, setShowLocationPicker] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [showLocationPicker, setShowLocationPicker] = useState<number | null>(null);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -33,140 +36,152 @@ const Upload = () => {
     }
   }, [user, loading, navigate]);
 
-  const processFile = async (file: File) => {
-    // Create preview
-    const reader = new FileReader();
-    reader.onload = (e) => setPreview(e.target?.result as string);
-    reader.readAsDataURL(file);
+  const processFiles = useCallback(async (files: File[]) => {
+    const newPending: PendingFile[] = [];
 
-    // Parse EXIF
-    try {
-      const exifData = await parsePhotoEXIF(file);
-      if (exifData) {
-        setGpsData({
-          latitude: exifData.latitude,
-          longitude: exifData.longitude,
-          timestamp: exifData.timestamp,
-        });
-      } else {
-        setGpsData(null);
-      }
-    } catch (error) {
-      console.error('Error parsing EXIF:', error);
-      setGpsData(null);
-    }
-
-    setSelectedFile(file);
-  };
-
-  const handleAnalyzePhoto = async () => {
-    if (!preview) return;
-    setAnalyzing(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('analyze-photo', {
-        body: { imageUrl: preview },
+    for (const file of files) {
+      const preview = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target?.result as string);
+        reader.readAsDataURL(file);
       });
 
+      let gpsData: PendingFile['gpsData'] = null;
+      try {
+        const exifData = await parsePhotoEXIF(file);
+        if (exifData) {
+          gpsData = { latitude: exifData.latitude, longitude: exifData.longitude, timestamp: exifData.timestamp };
+        }
+      } catch {
+        // no GPS
+      }
+
+      newPending.push({ file, preview, gpsData, caption: '', status: 'pending' });
+    }
+
+    setPendingFiles(prev => [...prev, ...newPending]);
+  }, []);
+
+  const onDrop = useCallback(async (acceptedFiles: File[]) => {
+    if (acceptedFiles.length > 0) {
+      await processFiles(acceptedFiles);
+    }
+  }, [processFiles]);
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    accept: { 'image/*': [] },
+    multiple: true,
+  });
+
+  const removeFile = (index: number) => {
+    setPendingFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const updateCaption = (index: number, caption: string) => {
+    setPendingFiles(prev => prev.map((f, i) => i === index ? { ...f, caption } : f));
+  };
+
+  const setLocationForFile = (index: number, lat: number, lng: number) => {
+    setPendingFiles(prev => prev.map((f, i) =>
+      i === index ? { ...f, gpsData: { latitude: lat, longitude: lng, timestamp: f.gpsData?.timestamp || null } } : f
+    ));
+    setShowLocationPicker(null);
+  };
+
+  const handleAnalyze = async (index: number) => {
+    const pending = pendingFiles[index];
+    if (!pending) return;
+
+    try {
+      const { data, error } = await supabase.functions.invoke('analyze-photo', {
+        body: { imageUrl: pending.preview },
+      });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
 
       const analysis = data.analysis;
       if (analysis?.tags?.length > 0) {
-        setAiTags(analysis.tags);
-        setAiDescription(analysis.description || '');
-        setAiSubjects(analysis.subjects || []);
-
-        if (!caption.trim()) {
-          const tagString = analysis.tags.map((t: string) => `#${t}`).join(' ');
-          setCaption(analysis.description ? `${analysis.description}\n${tagString}` : tagString);
-        }
-        toast.success('AI分析完了！タグを生成しました');
+        const tagString = analysis.tags.map((t: string) => `#${t}`).join(' ');
+        const newCaption = analysis.description ? `${analysis.description}\n${tagString}` : tagString;
+        updateCaption(index, newCaption);
+        toast.success('AI分析完了！');
       } else {
         toast.info('タグを生成できませんでした');
       }
-    } catch (error) {
-      console.error('AI analysis error:', error);
+    } catch {
       toast.error('AI分析に失敗しました');
-    } finally {
-      setAnalyzing(false);
     }
   };
 
-  const onDrop = useCallback(async (acceptedFiles: File[]) => {
-    if (acceptedFiles.length > 0) {
-      await processFile(acceptedFiles[0]);
-    }
-  }, []);
-
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop,
-    accept: { 'image/*': [] },
-    maxFiles: 1,
-  });
-
-  const handleUpload = async () => {
-    if (!selectedFile || !user) return;
+  const handleUploadAll = async () => {
+    if (!user) return;
+    const toUpload = pendingFiles.filter(f => f.status === 'pending');
+    if (toUpload.length === 0) return;
 
     setUploading(true);
-    try {
-      // Upload to storage
-      const fileExt = selectedFile.name.split('.').pop();
-      const fileName = `${user.id}/${Date.now()}.${fileExt}`;
+    setUploadProgress(0);
+    let completed = 0;
 
-      const { error: uploadError } = await supabase.storage
-        .from('photos')
-        .upload(fileName, selectedFile);
+    for (let i = 0; i < pendingFiles.length; i++) {
+      const pending = pendingFiles[i];
+      if (pending.status !== 'pending') continue;
 
-      if (uploadError) throw uploadError;
+      setPendingFiles(prev => prev.map((f, j) => j === i ? { ...f, status: 'uploading' } : f));
 
-      // Get public URL
-      const { data: urlData } = supabase.storage
-        .from('photos')
-        .getPublicUrl(fileName);
+      try {
+        const fileExt = pending.file.name.split('.').pop();
+        const fileName = `${user.id}/${Date.now()}-${Math.random().toString(36).substr(2, 6)}.${fileExt}`;
 
-      // Reverse geocode to get address info (町丁目まで)
-      const geocode = gpsData
-        ? await reverseGeocode(gpsData.latitude, gpsData.longitude)
-        : { prefecture: null, city: null, town: null };
+        const { error: uploadError } = await supabase.storage.from('photos').upload(fileName, pending.file);
+        if (uploadError) throw uploadError;
 
-      // Insert photo record
-      const { error: insertError } = await supabase
-        .from('photos')
-        .insert({
+        const { data: urlData } = supabase.storage.from('photos').getPublicUrl(fileName);
+        const geocode = pending.gpsData
+          ? await reverseGeocode(pending.gpsData.latitude, pending.gpsData.longitude)
+          : { prefecture: null, city: null, town: null };
+
+        const { error: insertError } = await supabase.from('photos').insert({
           user_id: user.id,
-          filename: selectedFile.name,
+          filename: pending.file.name,
           storage_path: fileName,
           thumbnail_url: urlData.publicUrl,
-          latitude: gpsData?.latitude || null,
-          longitude: gpsData?.longitude || null,
-          taken_at: gpsData?.timestamp?.toISOString() || null,
-          caption: caption.trim() || null,
+          latitude: pending.gpsData?.latitude || null,
+          longitude: pending.gpsData?.longitude || null,
+          taken_at: pending.gpsData?.timestamp?.toISOString() || null,
+          caption: pending.caption.trim() || null,
           prefecture: geocode.prefecture,
           city: geocode.city,
           town: geocode.town,
         });
+        if (insertError) throw insertError;
 
-      if (insertError) throw insertError;
+        setPendingFiles(prev => prev.map((f, j) => j === i ? { ...f, status: 'done' } : f));
+        completed++;
+        setUploadProgress(Math.round((completed / toUpload.length) * 100));
+      } catch (error) {
+        console.error('Upload error:', error);
+        setPendingFiles(prev => prev.map((f, j) => j === i ? { ...f, status: 'error' } : f));
+      }
+    }
 
-      toast.success('写真をアップロードしました！');
-      navigate('/feed');
-    } catch (error) {
-      console.error('Upload error:', error);
-      toast.error('アップロードに失敗しました');
-    } finally {
+    if (completed > 0) {
+      toast.success(`${completed}枚の写真を投稿しました！`);
+    }
+    if (completed === toUpload.length) {
+      setTimeout(() => navigate('/feed'), 1500);
+    } else {
       setUploading(false);
     }
   };
 
-  const clearSelection = () => {
-    setSelectedFile(null);
-    setPreview(null);
-    setGpsData(null);
-    setCaption('');
-    setAiTags([]);
-    setAiDescription('');
-    setAiSubjects([]);
+  const clearAll = () => {
+    setPendingFiles([]);
+    setShowLocationPicker(null);
   };
+
+  const pendingCount = pendingFiles.filter(f => f.status === 'pending').length;
+  const noGpsFiles = pendingFiles.filter(f => f.status === 'pending' && !f.gpsData);
 
   if (loading) {
     return (
@@ -184,179 +199,173 @@ const Upload = () => {
           <Button variant="ghost" size="icon" onClick={() => navigate('/feed')}>
             <ArrowLeft className="w-5 h-5" />
           </Button>
-          <h1 className="text-lg font-bold">写真をアップロード</h1>
-          <div className="w-10" />
+          <h1 className="text-lg font-bold">
+            写真をアップロード {pendingFiles.length > 0 && `(${pendingFiles.length}枚)`}
+          </h1>
+          {pendingFiles.length > 0 && (
+            <Button variant="ghost" size="sm" onClick={clearAll}>
+              全削除
+            </Button>
+          )}
+          {pendingFiles.length === 0 && <div className="w-10" />}
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="pt-20 pb-8 max-w-lg mx-auto px-4">
-        {!selectedFile ? (
-          /* Dropzone */
-          <div
-            {...getRootProps()}
-            className={`glass-panel p-8 text-center cursor-pointer transition-colors
-              ${isDragActive ? 'border-primary/50 bg-primary/5' : 'hover:border-primary/30'}
-            `}
-          >
-            <input {...getInputProps()} />
-            <div className="inline-flex p-4 bg-primary/10 rounded-2xl mb-4">
-              <Image className="w-12 h-12 text-primary" />
+      <main className="pt-20 pb-8 max-w-lg mx-auto px-4 space-y-4">
+        {/* Dropzone & File selector */}
+        {!uploading && (
+          <div className="space-y-2">
+            <div
+              {...getRootProps()}
+              className={`glass-panel p-8 text-center cursor-pointer transition-colors
+                ${isDragActive ? 'border-primary/50 bg-primary/5' : 'hover:border-primary/30'}`}
+            >
+              <input {...getInputProps()} />
+              <div className="inline-flex p-4 bg-primary/10 rounded-2xl mb-4">
+                <Image className="w-12 h-12 text-primary" />
+              </div>
+              <h2 className="text-lg font-semibold mb-2">
+                {isDragActive ? 'ドロップしてアップロード' : pendingFiles.length > 0 ? '写真を追加' : '写真を選択'}
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                ドラッグ＆ドロップまたはクリックして選択
+              </p>
+              <p className="text-xs text-muted-foreground mt-2">
+                ※ 複数選択可。GPS情報が含まれている写真は位置が表示されます
+              </p>
             </div>
-            <h2 className="text-lg font-semibold mb-2">
-              {isDragActive ? 'ドロップしてアップロード' : '写真を選択'}
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              ドラッグ＆ドロップまたはクリックして選択
-            </p>
-            <p className="text-xs text-muted-foreground mt-2">
-              ※ GPS情報が含まれている写真は位置が表示されます
-            </p>
+
+            <label className="flex items-center justify-center gap-2 w-full px-3 py-2 text-sm border border-border rounded-lg cursor-pointer hover:bg-muted transition-colors">
+              <Image className="w-4 h-4" />
+              ファイルを選択（複数可）
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={(e) => {
+                  const files = Array.from(e.target.files || []);
+                  if (files.length > 0) processFiles(files);
+                  e.target.value = '';
+                }}
+              />
+            </label>
           </div>
-        ) : (
-          /* Preview & Form */
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="space-y-4"
-          >
-            {/* Preview */}
-            <div className="relative glass-panel overflow-hidden">
-              <button
-                onClick={clearSelection}
-                className="absolute top-2 right-2 z-10 p-1 bg-background/80 rounded-full"
+        )}
+
+        {/* Pending files list */}
+        {pendingFiles.length > 0 && (
+          <div className="space-y-3">
+            {pendingFiles.map((pending, index) => (
+              <motion.div
+                key={`${pending.file.name}-${index}`}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className={`glass-panel p-3 space-y-2 ${
+                  pending.status === 'done' ? 'border-green-500/30' :
+                  pending.status === 'error' ? 'border-destructive/30' :
+                  pending.status === 'uploading' ? 'border-primary/30' : ''
+                }`}
               >
-                <X className="w-4 h-4" />
-              </button>
-              <img
-                src={preview || ''}
-                alt="Preview"
-                className="w-full aspect-square object-cover"
-              />
-            </div>
+                <div className="flex gap-3">
+                  <div className="relative w-20 h-20 shrink-0">
+                    <img src={pending.preview} alt="" className="w-full h-full object-cover rounded-lg" />
+                    {pending.status === 'done' && (
+                      <div className="absolute inset-0 bg-green-500/20 rounded-lg flex items-center justify-center">
+                        <CheckCircle2 className="w-8 h-8 text-green-500" />
+                      </div>
+                    )}
+                    {pending.status === 'uploading' && (
+                      <div className="absolute inset-0 bg-background/50 rounded-lg flex items-center justify-center">
+                        <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                      </div>
+                    )}
+                  </div>
 
-            {/* GPS Info */}
-            {gpsData ? (
-              <div className="glass-panel p-4 flex items-center gap-3">
-                <div className="p-2 bg-green-500/10 rounded-lg">
-                  <MapPin className="w-5 h-5 text-green-500" />
+                  <div className="flex-1 min-w-0 space-y-1">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium truncate">{pending.file.name}</p>
+                      {pending.status === 'pending' && !uploading && (
+                        <button onClick={() => removeFile(index)} className="p-1 hover:bg-muted rounded shrink-0">
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+
+                    {pending.gpsData ? (
+                      <p className="text-xs text-muted-foreground flex items-center gap-1">
+                        <MapPin className="w-3 h-3 text-green-500" />
+                        {pending.gpsData.latitude.toFixed(4)}, {pending.gpsData.longitude.toFixed(4)}
+                      </p>
+                    ) : pending.status === 'pending' && (
+                      showLocationPicker === index ? (
+                        <LocationPicker
+                          onLocationSelect={(lat, lng) => setLocationForFile(index, lat, lng)}
+                          onCancel={() => setShowLocationPicker(null)}
+                        />
+                      ) : (
+                        <button
+                          onClick={() => setShowLocationPicker(index)}
+                          className="text-xs text-amber-600 flex items-center gap-1 hover:underline"
+                        >
+                          <MapPinPlus className="w-3 h-3" />
+                          GPS無し - 位置を設定
+                        </button>
+                      )
+                    )}
+
+                    {pending.status === 'pending' && !uploading && (
+                      <button
+                        onClick={() => handleAnalyze(index)}
+                        className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-0.5"
+                      >
+                        <Sparkles className="w-3 h-3" />
+                        AIで自動タグ付け
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <div>
-                  <p className="text-sm font-medium">位置情報あり</p>
-                  <p className="text-xs text-muted-foreground">
-                    {gpsData.latitude.toFixed(6)}, {gpsData.longitude.toFixed(6)}
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <div className="glass-panel p-4 space-y-3">
-                {showLocationPicker ? (
-                  <LocationPicker
-                    onLocationSelect={(lat, lng) => {
-                      setGpsData({ latitude: lat, longitude: lng, timestamp: null });
-                      setShowLocationPicker(false);
-                    }}
-                    onCancel={() => setShowLocationPicker(false)}
+
+                {pending.status === 'pending' && !uploading && (
+                  <Textarea
+                    placeholder="キャプション... #ハッシュタグも使えます"
+                    value={pending.caption}
+                    onChange={(e) => updateCaption(index, e.target.value)}
+                    className="min-h-[50px] text-sm"
+                    rows={2}
                   />
-                ) : (
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-muted rounded-lg">
-                        <MapPin className="w-5 h-5 text-muted-foreground" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-muted-foreground">位置情報なし</p>
-                        <p className="text-xs text-muted-foreground">GPS情報が含まれていません</p>
-                      </div>
-                    </div>
-                    <Button variant="outline" size="sm" onClick={() => setShowLocationPicker(true)}>
-                      <MapPinPlus className="w-4 h-4 mr-1" />
-                      手動で設定
-                    </Button>
-                  </div>
                 )}
-              </div>
-            )}
 
-            {/* AI Auto-Tag Button */}
-            <Button
-              variant="outline"
-              className="w-full"
-              onClick={handleAnalyzePhoto}
-              disabled={analyzing}
-            >
-              {analyzing ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  AI分析中...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-4 h-4 mr-2" />
-                  AIで自動タグ付け
-                </>
-              )}
-            </Button>
-
-            {/* AI Results */}
-            {aiTags.length > 0 && (
-              <div className="glass-panel p-4 space-y-3">
-                <p className="text-sm font-medium flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-primary" />
-                  AI分析結果
-                </p>
-                {aiDescription && (
-                  <p className="text-sm text-muted-foreground">{aiDescription}</p>
+                {pending.caption && pending.status !== 'pending' && (
+                  <p className="text-xs text-muted-foreground truncate">{pending.caption}</p>
                 )}
-                {aiSubjects.length > 0 && (
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1">被写体</p>
-                    <div className="flex flex-wrap gap-1">
-                      {aiSubjects.map((subject, i) => (
-                        <Badge key={i} variant="secondary">{subject}</Badge>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                <div className="flex flex-wrap gap-1">
-                  {aiTags.map((tag, i) => (
-                    <Badge key={i} variant="outline" className="text-xs">#{tag}</Badge>
-                  ))}
-                </div>
-              </div>
-            )}
+              </motion.div>
+            ))}
+          </div>
+        )}
 
-            {/* Caption */}
-            <div className="glass-panel p-4 space-y-2">
-              <label className="text-sm font-medium">キャプション</label>
-              <Textarea
-                placeholder="写真について書く... #ハッシュタグも使えます"
-                value={caption}
-                onChange={(e) => setCaption(e.target.value)}
-                className="min-h-[100px]"
-              />
-            </div>
+        {/* Upload progress */}
+        {uploading && (
+          <div className="glass-panel p-4 space-y-2">
+            <Progress value={uploadProgress} className="h-2" />
+            <p className="text-sm text-muted-foreground text-center">{uploadProgress}% 完了</p>
+          </div>
+        )}
 
-            {/* Upload Button */}
-            <Button
-              className="w-full"
-              size="lg"
-              onClick={handleUpload}
-              disabled={uploading}
-            >
-              {uploading ? (
-                <>
-                  <span className="animate-spin mr-2">⏳</span>
-                  アップロード中...
-                </>
-              ) : (
-                <>
-                  <UploadIcon className="w-4 h-4 mr-2" />
-                  投稿する
-                </>
-              )}
-            </Button>
-          </motion.div>
+        {/* GPS warning */}
+        {noGpsFiles.length > 0 && !uploading && (
+          <p className="text-xs text-amber-600">
+            ⚠ {noGpsFiles.length}枚の写真にGPS情報がありません
+          </p>
+        )}
+
+        {/* Upload button */}
+        {pendingCount > 0 && !uploading && (
+          <Button className="w-full" size="lg" onClick={handleUploadAll}>
+            <UploadIcon className="w-4 h-4 mr-2" />
+            {pendingCount}枚を投稿する
+          </Button>
         )}
       </main>
     </div>
