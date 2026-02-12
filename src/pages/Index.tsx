@@ -395,7 +395,18 @@ const Index = () => {
                           hasPhotosWithoutAddress={hasPhotosWithoutAddress}
                         />
                       )}
-                      {!isAdminMode && <PhotoTimeline photos={displayPhotos} />}
+                      <PhotoTimeline
+                        photos={
+                          isAdminMode && highlightedAreaId
+                            ? displayPhotos.filter(p => {
+                                if (adminLevel === 'prefecture') return p.prefecture === highlightedAreaId;
+                                if (adminLevel === 'city') return p.city === highlightedAreaId;
+                                if (adminLevel === 'town') return p.town === highlightedAreaId;
+                                return true;
+                              })
+                            : displayPhotos
+                        }
+                      />
                     </>
                   )}
                 </motion.div>
