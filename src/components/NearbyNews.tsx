@@ -1,7 +1,8 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Newspaper, ExternalLink, Loader2, AlertCircle, RefreshCw, MapPin, Calendar, Navigation } from 'lucide-react';
+import { Newspaper, ExternalLink, Loader2, AlertCircle, Navigation, CalendarDays, MapPin, Calendar, Plus, Check } from 'lucide-react';
 import { PhotoLocation } from '@/types/photo';
+import { EventSearchResult } from '@/types/event';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
@@ -16,13 +17,17 @@ interface NewsItem {
 
 interface NearbyNewsProps {
   photos: PhotoLocation[];
+  onAddEvents?: (events: EventSearchResult[]) => Promise<number>;
+  isLoggedIn?: boolean;
 }
 
 // Module-level guard to prevent re-fetching across remounts  
 let globalAutoFetched = false;
 
-const NearbyNews = ({ photos }: NearbyNewsProps) => {
+const NearbyNews = ({ photos, onAddEvents, isLoggedIn }: NearbyNewsProps) => {
   const [news, setNews] = useState<NewsItem[]>([]);
+  const [events, setEvents] = useState<EventSearchResult[]>([]);
+  const [selectedEventIndices, setSelectedEventIndices] = useState<Set<number>>(new Set());
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasFetched, setHasFetched] = useState(false);
@@ -57,7 +62,6 @@ const NearbyNews = ({ photos }: NearbyNewsProps) => {
   const getSearchParamsFromPhotos = useCallback(() => {
     if (photos.length === 0) return null;
 
-    // Get the most common prefecture/city combination
     const locationCounts = new Map<string, number>();
     photos.forEach(photo => {
       const location = [photo.prefecture, photo.city].filter(Boolean).join(' ');
@@ -75,7 +79,6 @@ const NearbyNews = ({ photos }: NearbyNewsProps) => {
       }
     });
 
-    // Get the earliest date
     const sortedPhotos = [...photos].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
     const earliestDate = sortedPhotos[0]?.timestamp;
 
@@ -105,6 +108,14 @@ const NearbyNews = ({ photos }: NearbyNewsProps) => {
       console.error('Reverse geocode failed:', err);
       return null;
     }
+  };
+
+  // Extract prefecture and city from location string
+  const extractPrefectureCity = (location: string) => {
+    const parts = location.split(/\s+/);
+    const prefecture = parts[0] || '';
+    const city = parts[1] || '';
+    return { prefecture, city };
   };
 
   // Get current location
@@ -157,32 +168,50 @@ const NearbyNews = ({ photos }: NearbyNewsProps) => {
     }
   };
 
-  const fetchNews = async (params: { location: string; date: string }) => {
+  // Fetch both news and events in parallel
+  const fetchLocalInfo = async (params: { location: string; date: string }) => {
     if (!params.location || !params.date) return;
-    if (isFetchingRef.current) return; // prevent duplicate calls
+    if (isFetchingRef.current) return;
     isFetchingRef.current = true;
 
     setIsLoading(true);
     setError(null);
 
+    const { prefecture, city } = extractPrefectureCity(params.location);
+
     try {
-      const { data, error: fnError } = await supabase.functions.invoke('search-news', {
-        body: params,
-      });
+      // Fetch news and events in parallel
+      const [newsResult, eventsResult] = await Promise.allSettled([
+        supabase.functions.invoke('search-news', { body: params }),
+        supabase.functions.invoke('search-events', { body: { prefecture, city, period: '今後数ヶ月' } }),
+      ]);
 
-      if (fnError) {
-        throw new Error(fnError.message);
+      // Process news
+      if (newsResult.status === 'fulfilled') {
+        const { data, error: fnError } = newsResult.value;
+        if (!fnError && data && !data.error) {
+          setNews(data.news || []);
+        } else {
+          console.error('News fetch error:', fnError || data?.error);
+        }
       }
 
-      if (data.error) {
-        throw new Error(data.error);
+      // Process events
+      if (eventsResult.status === 'fulfilled') {
+        const { data, error: fnError } = eventsResult.value;
+        if (!fnError && data && !data.error) {
+          const fetchedEvents = data.events || [];
+          setEvents(fetchedEvents);
+          setSelectedEventIndices(new Set(fetchedEvents.map((_: any, i: number) => i)));
+        } else {
+          console.error('Events fetch error:', fnError || data?.error);
+        }
       }
 
-      setNews(data.news || []);
       setHasFetched(true);
     } catch (err) {
-      console.error('Failed to fetch news:', err);
-      setError(err instanceof Error ? err.message : 'ニュースの取得に失敗しました');
+      console.error('Failed to fetch local info:', err);
+      setError(err instanceof Error ? err.message : '情報の取得に失敗しました');
     } finally {
       setIsLoading(false);
       isFetchingRef.current = false;
@@ -192,23 +221,42 @@ const NearbyNews = ({ photos }: NearbyNewsProps) => {
   const handleSearchFromPhotos = () => {
     const params = getSearchParamsFromPhotos();
     if (params) {
-      fetchNews(params);
+      fetchLocalInfo(params);
     }
   };
 
   const handleSearchManual = () => {
     if (manualLocation && manualDate) {
-      fetchNews({
+      fetchLocalInfo({
         location: manualLocation,
         date: new Date(manualDate).toISOString(),
       });
     }
   };
 
+  const toggleEventSelection = (index: number) => {
+    setSelectedEventIndices(prev => {
+      const next = new Set(prev);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
+  };
+
+  const handleAddSelectedEvents = async () => {
+    if (!onAddEvents) return;
+    const selected = events.filter((_, i) => selectedEventIndices.has(i));
+    if (selected.length > 0) {
+      await onAddEvents(selected);
+      setEvents([]);
+      setSelectedEventIndices(new Set());
+    }
+  };
+
   const searchParamsFromPhotos = getSearchParamsFromPhotos();
   const hasPhotoParams = !!searchParamsFromPhotos;
 
-  // Auto-fetch on mount: get current location + today's news
+  // Auto-fetch on mount: get current location + today's info
   useEffect(() => {
     if (hasAutoFetched.current || globalAutoFetched) return;
     hasAutoFetched.current = true;
@@ -233,7 +281,7 @@ const NearbyNews = ({ photos }: NearbyNewsProps) => {
         if (locationName) {
           setManualLocation(locationName);
           setCurrentLocationName(locationName);
-          fetchNews({
+          fetchLocalInfo({
             location: locationName,
             date: new Date().toISOString(),
           });
@@ -257,12 +305,11 @@ const NearbyNews = ({ photos }: NearbyNewsProps) => {
     >
       <div className="flex items-center gap-2 mb-4">
         <Newspaper className="w-5 h-5 text-primary" />
-        <h2 className="text-lg font-semibold gradient-text">ニュース検索</h2>
+        <h2 className="text-lg font-semibold gradient-text">周辺ニュース・イベント</h2>
       </div>
 
       {/* Search Options */}
       <div className="space-y-4 mb-4">
-        {/* Option 1: Search from photos (if available) */}
         {hasPhotoParams && (
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 p-3 rounded-lg bg-secondary/20">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -284,7 +331,6 @@ const NearbyNews = ({ photos }: NearbyNewsProps) => {
           </div>
         )}
 
-        {/* Option 2: Manual search with current location or typed location */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 p-3 rounded-lg bg-secondary/20">
           <div className="flex items-center gap-2 flex-1 w-full">
             <Button
@@ -331,7 +377,7 @@ const NearbyNews = ({ photos }: NearbyNewsProps) => {
       {isLoading && (
         <div className="flex items-center justify-center py-8">
           <Loader2 className="w-6 h-6 animate-spin text-primary" />
-          <span className="ml-2 text-sm text-muted-foreground">検索中...</span>
+          <span className="ml-2 text-sm text-muted-foreground">ニュース・イベントを検索中...</span>
         </div>
       )}
 
@@ -342,43 +388,113 @@ const NearbyNews = ({ photos }: NearbyNewsProps) => {
         </div>
       )}
 
-      {hasFetched && !isLoading && !error && news.length === 0 && (
+      {hasFetched && !isLoading && !error && news.length === 0 && events.length === 0 && (
         <p className="text-sm text-muted-foreground text-center py-4">
-          この日のニュースは見つかりませんでした
+          この地域の情報は見つかりませんでした
         </p>
       )}
 
+      {/* News Results */}
       {news.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-          {news.map((item, index) => (
-            <motion.button
-              key={index}
-              onClick={() => handleNewsClick(item)}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, delay: 0.05 * index }}
-              className="block p-4 rounded-lg bg-secondary/30 hover:bg-secondary/50 transition-colors group text-left w-full"
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-sm font-medium text-foreground line-clamp-2 group-hover:text-primary transition-colors">
-                    {item.title}
-                  </h3>
-                  {item.summary && (
-                    <p className="text-xs text-muted-foreground mt-2 line-clamp-2">
-                      {item.summary}
-                    </p>
-                  )}
-                  {item.source && (
-                    <p className="text-xs text-primary/70 mt-2">
-                      {item.source}
-                    </p>
-                  )}
+        <div className="mb-4">
+          <h3 className="text-sm font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+            <Newspaper className="w-3.5 h-3.5" />
+            ニュース ({news.length}件)
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
+            {news.map((item, index) => (
+              <motion.button
+                key={index}
+                onClick={() => handleNewsClick(item)}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: 0.05 * index }}
+                className="block p-3 rounded-lg bg-secondary/30 hover:bg-secondary/50 transition-colors group text-left w-full"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-sm font-medium text-foreground line-clamp-2 group-hover:text-primary transition-colors">
+                      {item.title}
+                    </h3>
+                    {item.summary && (
+                      <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{item.summary}</p>
+                    )}
+                    {item.source && (
+                      <p className="text-xs text-primary/70 mt-1">{item.source}</p>
+                    )}
+                  </div>
+                  <ExternalLink className="w-4 h-4 text-muted-foreground group-hover:text-primary flex-shrink-0 transition-colors" />
                 </div>
-                <ExternalLink className="w-4 h-4 text-muted-foreground group-hover:text-primary flex-shrink-0 transition-colors" />
-              </div>
-            </motion.button>
-          ))}
+              </motion.button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Events Results */}
+      {events.length > 0 && (
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-semibold text-muted-foreground flex items-center gap-1.5">
+              <CalendarDays className="w-3.5 h-3.5" />
+              周辺イベント ({events.length}件)
+            </h3>
+            {isLoggedIn && onAddEvents && (
+              <Button
+                onClick={handleAddSelectedEvents}
+                size="sm"
+                disabled={selectedEventIndices.size === 0}
+                className="gap-1.5 text-xs"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                選択した{selectedEventIndices.size}件を追加
+              </Button>
+            )}
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
+            {events.map((event, index) => (
+              <motion.button
+                key={index}
+                onClick={() => isLoggedIn ? toggleEventSelection(index) : undefined}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: 0.05 * index }}
+                className={`block p-3 rounded-lg transition-colors text-left w-full ${
+                  selectedEventIndices.has(index)
+                    ? 'bg-primary/10 border border-primary/30'
+                    : 'bg-secondary/30 hover:bg-secondary/50 border border-transparent'
+                }`}
+              >
+                <div className="flex items-start gap-2">
+                  {isLoggedIn && (
+                    <div className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
+                      selectedEventIndices.has(index) ? 'bg-primary border-primary' : 'border-muted-foreground/30'
+                    }`}>
+                      {selectedEventIndices.has(index) && <Check className="w-2.5 h-2.5 text-primary-foreground" />}
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium line-clamp-2">{event.name}</p>
+                    {event.location_name && (
+                      <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
+                        <MapPin className="w-3 h-3 shrink-0" />
+                        <span className="line-clamp-1">{event.location_name}</span>
+                      </p>
+                    )}
+                    {event.event_start && (
+                      <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                        <Calendar className="w-3 h-3 shrink-0" />
+                        {event.event_start}{event.event_end && event.event_end !== event.event_start ? ` 〜 ${event.event_end}` : ''}
+                      </p>
+                    )}
+                    {event.description && (
+                      <p className="text-xs text-muted-foreground mt-1 line-clamp-1">{event.description}</p>
+                    )}
+                  </div>
+                </div>
+              </motion.button>
+            ))}
+          </div>
         </div>
       )}
 
