@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MapPin, Heart, MessageCircle, Share2, User, Plus, LogOut, Map, MoreVertical, Trash2, Bookmark, Image } from 'lucide-react';
+import { MapPin, Heart, MessageCircle, Share2, User, Plus, LogOut, Map, MoreVertical, Trash2, Bookmark, Image, Archive } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -425,8 +425,8 @@ const Feed = () => {
                             className="text-destructive focus:text-destructive"
                             onClick={() => setDeleteTarget(photo)}
                           >
-                            <Trash2 className="w-4 h-4 mr-2" />
-                            削除
+                            <Archive className="w-4 h-4 mr-2" />
+                            アーカイブ
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
