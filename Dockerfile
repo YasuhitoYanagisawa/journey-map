@@ -3,6 +3,14 @@ FROM node:22-alpine AS build
 
 WORKDIR /app
 
+ARG VITE_SUPABASE_PROJECT_ID
+ARG VITE_SUPABASE_PUBLISHABLE_KEY
+ARG VITE_SUPABASE_URL
+
+ENV VITE_SUPABASE_PROJECT_ID=$VITE_SUPABASE_PROJECT_ID
+ENV VITE_SUPABASE_PUBLISHABLE_KEY=$VITE_SUPABASE_PUBLISHABLE_KEY
+ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL
+
 COPY package.json package-lock.json ./
 RUN npm ci
 
@@ -12,13 +20,9 @@ RUN npm run build
 # Production stage
 FROM nginx:alpine
 
-# Copy custom nginx config
 COPY nginx.conf /etc/nginx/conf.d/default.conf
-
-# Copy built assets
 COPY --from=build /app/dist /usr/share/nginx/html
 
-# Cloud Run uses PORT env variable
 EXPOSE 8080
 
 CMD ["nginx", "-g", "daemon off;"]
