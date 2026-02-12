@@ -71,6 +71,33 @@
 | `GOOGLE_GEMINI_API_KEY` | Google AI Studio APIキー（Edge Function用） | [Google AI Studio](https://aistudio.google.com/) |
 | `PERPLEXITY_API_KEY` | Perplexity APIキー（Edge Function用） | [Perplexity](https://docs.perplexity.ai/) |
 
+### APIキーの設定方法
+
+本アプリのAI機能（写真解析・イベント検索・ニュース検索）はSupabase Edge Functionで動作しており、APIキーは**Supabaseのシークレット**として管理されています。
+
+GitHubからクローンして自分の環境で動かす場合は、以下の手順でAPIキーを設定してください：
+
+1. **Supabaseプロジェクトを作成**（[supabase.com](https://supabase.com/)）
+2. **Edge Functionsをデプロイ**
+   ```sh
+   supabase link --project-ref <your-project-ref>
+   supabase functions deploy analyze-photo
+   supabase functions deploy search-events
+   supabase functions deploy search-news
+   ```
+3. **シークレットを設定**
+   ```sh
+   supabase secrets set GOOGLE_GEMINI_API_KEY=<your-gemini-key>
+   supabase secrets set PERPLEXITY_API_KEY=<your-perplexity-key>
+   ```
+4. **フロントエンドの環境変数を設定**（`.env` ファイルを作成）
+   ```
+   VITE_SUPABASE_URL=https://<your-project-ref>.supabase.co
+   VITE_SUPABASE_PUBLISHABLE_KEY=<your-anon-key>
+   ```
+
+> 💡 Mapboxトークンはブラウザ上で初回アクセス時に入力を求められます。`VITE_MAPBOX_ACCESS_TOKEN` 環境変数で事前設定も可能です。
+
 ### ローカル開発
 
 ```sh
