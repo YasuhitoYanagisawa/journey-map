@@ -21,16 +21,16 @@ serve(async (req) => {
     const locationQuery = [prefecture, city].filter(Boolean).join(" ");
     const periodQuery = period || "今後2ヶ月以内";
 
-    // Calculate the date 2 months from now for strict filtering
-    const twoMonthsLater = new Date(now.getTime() + jstOffset);
-    twoMonthsLater.setMonth(twoMonthsLater.getMonth() + 2);
-    const maxDateStr = twoMonthsLater.toISOString().split('T')[0];
-
     // Build today's date string in JST for filtering
     const now = new Date();
     const jstOffset = 9 * 60 * 60 * 1000;
     const jstNow = new Date(now.getTime() + jstOffset);
     const todayStr = jstNow.toISOString().split('T')[0]; // YYYY-MM-DD in JST
+
+    // Calculate the date 2 months from now for strict filtering
+    const twoMonthsLater = new Date(jstNow.getTime());
+    twoMonthsLater.setMonth(twoMonthsLater.getMonth() + 2);
+    const maxDateStr = twoMonthsLater.toISOString().split('T')[0];
 
     const prompt = `以下の条件でお祭り・イベント情報をウェブで調べて、必ず以下のJSON形式のリストのみを返してください。
 
