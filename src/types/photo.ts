@@ -21,5 +21,5 @@ export interface DayStats {
   locations: PhotoLocation[];
 }
 
-export type ViewMode = 'markers' | 'heatmap' | 'route' | 'grid' | 'admin';
+export type ViewMode = 'markers' | 'heatmap' | 'route' | 'admin';
 export type GridSizeOption = 100 | 500 | 1000 | 5000;
