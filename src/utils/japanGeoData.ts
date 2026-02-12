@@ -399,11 +399,12 @@ export function createPrefectureFeatures(
   const matchedFeatures: Feature<Polygon | MultiPolygon>[] = [];
 
   // Helper: check if a polygon ring is in the Tokyo remote islands area
+  // Tokyo mainland southernmost point is ~35.5°N; islands like Izu Oshima are ~34.7°N
   const isTokyoIslandRing = (ring: number[][]): boolean => {
     if (ring.length === 0) return false;
     const avgLng = ring.reduce((s, c) => s + c[0], 0) / ring.length;
     const avgLat = ring.reduce((s, c) => s + c[1], 0) / ring.length;
-    return avgLng > 140.0 || avgLat < 34.5;
+    return avgLng > 140.5 || avgLat < 35.0;
   };
 
   for (const feature of geoData.features) {
