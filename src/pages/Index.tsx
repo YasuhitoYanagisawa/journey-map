@@ -38,7 +38,7 @@ const Index = () => {
   const [showEvents, setShowEvents] = useState(true);
   const [showVisited, setShowVisited] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<EventItem | null>(null);
-  const [sidebarTab, setSidebarTab] = useState<'photos' | 'events'>('photos');
+  
   
   const isAdminMode = viewMode.startsWith('admin-');
   const adminLevel: AdminLevel = viewMode === 'admin-city' ? 'city' : viewMode === 'admin-town' ? 'town' : 'prefecture';
@@ -100,7 +100,6 @@ const Index = () => {
 
   const handleEventClick = useCallback((event: EventItem) => {
     setSelectedEvent(event);
-    setSidebarTab('events');
   }, []);
 
   const hasPhotos = photos.length > 0;
@@ -250,15 +249,6 @@ const Index = () => {
               exit={{ opacity: 0 }}
               className="flex flex-col"
             >
-              {/* News + Events Section - Top */}
-              <div className="px-4 pt-4">
-                <NearbyNews
-                  photos={displayPhotos}
-                  onAddEvents={addMultipleEvents}
-                  isLoggedIn={!!user}
-                />
-              </div>
-
               {/* Map + Sidebar Row */}
               <div className="h-[calc(100vh-5rem)] flex">
                 {/* Map Area */}
@@ -321,36 +311,59 @@ const Index = () => {
                   />
                 </div>
 
-                {/* Sidebar */}
+                {/* Sidebar - Events */}
                 <motion.div
                   initial={{ x: 50, opacity: 0 }}
                   animate={{ x: 0, opacity: 1 }}
                   transition={{ delay: 0.2 }}
                   className="w-80 p-4 space-y-4 overflow-y-auto"
                 >
-                  {/* Sidebar Tab Toggle */}
-                  <div className="flex gap-1 p-1 rounded-lg bg-secondary/30">
-                    <button
-                      onClick={() => setSidebarTab('photos')}
-                      className={`flex-1 px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-1.5 ${
-                        sidebarTab === 'photos' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
-                      }`}
-                    >
-                      <Camera className="w-3.5 h-3.5" />
-                      写真
-                    </button>
-                    <button
-                      onClick={() => setSidebarTab('events')}
-                      className={`flex-1 px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-1.5 ${
-                        sidebarTab === 'events' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
-                      }`}
-                    >
-                      <CalendarDays className="w-3.5 h-3.5" />
-                      イベント
-                    </button>
+                  {/* Event Task List */}
+                  <div className="glass-panel p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <ListTodo className="w-5 h-5 text-primary" />
+                        <h3 className="font-semibold text-sm">
+                          {showVisited ? '訪問済み' : '予定イベント'}
+                          <span className="text-muted-foreground ml-1">
+                            ({showVisited ? visitedEvents.length : upcomingEvents.length})
+                          </span>
+                        </h3>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setShowVisited(!showVisited)}
+                        className="h-7 text-xs gap-1"
+                      >
+                        {showVisited ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        {showVisited ? '予定' : '訪問済み'}
+                      </Button>
+                    </div>
+
+                    {user && !showVisited && upcomingEvents.length > 0 && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleAutoMatch}
+                        className="w-full mb-3 gap-2 text-xs"
+                      >
+                        <Camera className="w-3.5 h-3.5" />
+                        写真から自動消込
+                      </Button>
+                    )}
+
+                    <EventTaskList
+                      events={events}
+                      onToggleVisited={toggleVisited}
+                      onDelete={deleteEvent}
+                      onEventClick={handleEventClick}
+                      showVisited={showVisited}
+                    />
                   </div>
 
-                  {sidebarTab === 'photos' ? (
+                  {/* Photo Stats & Timeline */}
+                  {hasPhotos && (
                     <>
                       {stats && <StatsPanel stats={stats} title={statsLabel} />}
                       {isAdminMode && adminStats && (
@@ -364,54 +377,17 @@ const Index = () => {
                       )}
                       {!isAdminMode && <PhotoTimeline photos={displayPhotos} />}
                     </>
-                  ) : (
-                    <>
-                      {/* Event Task List */}
-                      <div className="glass-panel p-4">
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="flex items-center gap-2">
-                            <ListTodo className="w-5 h-5 text-primary" />
-                            <h3 className="font-semibold text-sm">
-                              {showVisited ? '訪問済み' : '予定イベント'}
-                              <span className="text-muted-foreground ml-1">
-                                ({showVisited ? visitedEvents.length : upcomingEvents.length})
-                              </span>
-                            </h3>
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setShowVisited(!showVisited)}
-                            className="h-7 text-xs gap-1"
-                          >
-                            {showVisited ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                            {showVisited ? '予定' : '訪問済み'}
-                          </Button>
-                        </div>
-
-                        {user && !showVisited && upcomingEvents.length > 0 && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={handleAutoMatch}
-                            className="w-full mb-3 gap-2 text-xs"
-                          >
-                            <Camera className="w-3.5 h-3.5" />
-                            写真から自動消込
-                          </Button>
-                        )}
-
-                        <EventTaskList
-                          events={events}
-                          onToggleVisited={toggleVisited}
-                          onDelete={deleteEvent}
-                          onEventClick={handleEventClick}
-                          showVisited={showVisited}
-                        />
-                      </div>
-                    </>
                   )}
                 </motion.div>
+              </div>
+
+              {/* News + Events Section - Below Map */}
+              <div className="px-4 pb-4">
+                <NearbyNews
+                  photos={displayPhotos}
+                  onAddEvents={addMultipleEvents}
+                  isLoggedIn={!!user}
+                />
               </div>
             </motion.div>
           )}
