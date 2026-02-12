@@ -1,0 +1,25 @@
+# Dockerfile
+Dockerfile
+*.dockerfile
+
+# Dependencies
+node_modules/
+
+# Build output (will be generated inside container)
+dist/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# Supabase local
+supabase/.temp/
