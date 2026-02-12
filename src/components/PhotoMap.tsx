@@ -509,13 +509,21 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId, filt
                 return { lng: sumLng / count, lat: sumLat / count };
               };
 
+              // Override centroids for prefectures where islands skew the position
+              const prefectureLabelOverrides: Record<string, { lng: number; lat: number }> = {
+                '東京都': { lng: 139.6917, lat: 35.6895 }, // 23区中心（新宿付近）
+              };
+
               const labelPoints = {
                 type: 'FeatureCollection' as const,
                 features: prefectureFeatures.features.map(feature => {
-                  const centroid = centroidOfGeometry(feature.geometry);
+                  const name = feature.properties?.name;
+                  const centroid = (name && prefectureLabelOverrides[name])
+                    ? prefectureLabelOverrides[name]
+                    : centroidOfGeometry(feature.geometry);
                   return {
                     type: 'Feature' as const,
-                    properties: { name: feature.properties?.name, count: feature.properties?.count },
+                    properties: { name, count: feature.properties?.count },
                     geometry: { type: 'Point' as const, coordinates: [centroid.lng, centroid.lat] },
                   };
                 }),
