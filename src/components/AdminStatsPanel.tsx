@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
 interface AdminStatsPanelProps {
   stats: AdminBoundaryStats;
   adminLevel: AdminLevel;
-  onLevelChange: (level: AdminLevel) => void;
+  onLevelChange?: (level: AdminLevel) => void;
   onAreaClick?: (areaId: string) => void;
   onUpdateAddressInfo?: (onProgress: (current: number, total: number) => void) => Promise<number>;
   hasPhotosWithoutAddress?: boolean;
@@ -45,23 +45,25 @@ const AdminStatsPanel = ({ stats, adminLevel, onLevelChange, onAreaClick, onUpda
         <h3 className="font-semibold gradient-text">行政区画別集計</h3>
       </div>
 
-      {/* Level selector */}
-      <div className="flex gap-1 p-1 bg-muted/50 rounded-lg">
-        {levels.map((level) => (
-          <Button
-            key={level}
-            variant={adminLevel === level ? 'default' : 'ghost'}
-            size="sm"
-            className={cn(
-              'flex-1 h-8 text-xs',
-              adminLevel === level && 'bg-primary text-primary-foreground'
-            )}
-            onClick={() => onLevelChange(level)}
-          >
-            {getAdminLevelLabel(level)}
-          </Button>
-        ))}
-      </div>
+      {/* Level selector (only if onLevelChange provided) */}
+      {onLevelChange && (
+        <div className="flex gap-1 p-1 bg-muted/50 rounded-lg">
+          {levels.map((level) => (
+            <Button
+              key={level}
+              variant={adminLevel === level ? 'default' : 'ghost'}
+              size="sm"
+              className={cn(
+                'flex-1 h-8 text-xs',
+                adminLevel === level && 'bg-primary text-primary-foreground'
+              )}
+              onClick={() => onLevelChange(level)}
+            >
+              {getAdminLevelLabel(level)}
+            </Button>
+          ))}
+        </div>
+      )}
 
       {/* Stats summary */}
       <div className="text-sm text-muted-foreground">
