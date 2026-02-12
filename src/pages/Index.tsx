@@ -9,6 +9,7 @@ import PhotoTimeline from '@/components/PhotoTimeline';
 import NearbyNews from '@/components/NearbyNews';
 import LayerToggle from '@/components/LayerToggle';
 import EventTaskList from '@/components/EventTaskList';
+import EventCoverageKPI from '@/components/EventCoverageKPI';
 
 import AdminStatsPanel from '@/components/AdminStatsPanel';
 import ViewModeToggle from '@/components/ViewModeToggle';
@@ -239,6 +240,15 @@ const Index = () => {
                   </div>
                 ))}
               </motion.div>
+
+              {/* Nearby News on Welcome Screen */}
+              <div className="mt-8 w-full max-w-4xl">
+                <NearbyNews
+                  photos={[]}
+                  onAddEvents={addMultipleEvents}
+                  isLoggedIn={!!user}
+                />
+              </div>
             </motion.div>
           ) : (
             /* Map View */
@@ -321,6 +331,9 @@ const Index = () => {
                   transition={{ delay: 0.2 }}
                   className="w-80 p-4 space-y-4 overflow-y-auto"
                 >
+                  {/* Event Coverage KPI */}
+                  {events.length > 0 && <EventCoverageKPI events={events} />}
+
                   {/* Event Task List */}
                   <div className="glass-panel p-4">
                     <div className="flex items-center justify-between mb-3">
