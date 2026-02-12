@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MapPin, X, Sparkles, Loader2, Image, Upload } from 'lucide-react';
+import { MapPin, X, Sparkles, Loader2, Image, Upload, MapPinPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
@@ -9,6 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { parsePhotoEXIF } from '@/utils/exifParser';
 import { reverseGeocode } from '@/utils/reverseGeocode';
 import { useDropzone } from 'react-dropzone';
+import LocationPicker from '@/components/LocationPicker';
 
 interface InlineUploadFormProps {
   userId: string;
@@ -25,6 +26,7 @@ const InlineUploadForm = ({ userId, onUploaded }: InlineUploadFormProps) => {
   const [analyzing, setAnalyzing] = useState(false);
   const [aiTags, setAiTags] = useState<string[]>([]);
   const [aiDescription, setAiDescription] = useState('');
+  const [showLocationPicker, setShowLocationPicker] = useState(false);
 
   const processFile = async (file: File) => {
     const reader = new FileReader();
@@ -128,6 +130,7 @@ const InlineUploadForm = ({ userId, onUploaded }: InlineUploadFormProps) => {
     setCaption('');
     setAiTags([]);
     setAiDescription('');
+    setShowLocationPicker(false);
   };
 
   if (!isOpen) {
@@ -171,11 +174,24 @@ const InlineUploadForm = ({ userId, onUploaded }: InlineUploadFormProps) => {
             <img src={preview || ''} alt="Preview" className="w-full max-h-64 object-cover rounded-lg" />
           </div>
 
-          {gpsData && (
+          {gpsData ? (
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <MapPin className="w-3 h-3 text-green-500" />
               <span>{gpsData.latitude.toFixed(4)}, {gpsData.longitude.toFixed(4)}</span>
             </div>
+          ) : showLocationPicker ? (
+            <LocationPicker
+              onLocationSelect={(lat, lng) => {
+                setGpsData({ latitude: lat, longitude: lng, timestamp: null });
+                setShowLocationPicker(false);
+              }}
+              onCancel={() => setShowLocationPicker(false)}
+            />
+          ) : (
+            <Button variant="outline" size="sm" className="w-full" onClick={() => setShowLocationPicker(true)}>
+              <MapPinPlus className="w-3 h-3 mr-1" />
+              手動で位置を設定
+            </Button>
           )}
 
           <Button variant="outline" size="sm" className="w-full" onClick={handleAnalyze} disabled={analyzing}>

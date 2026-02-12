@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { MapPin, Upload as UploadIcon, Image, ArrowLeft, X, Sparkles, Loader2 } from 'lucide-react';
+import { MapPin, Upload as UploadIcon, Image, ArrowLeft, X, Sparkles, Loader2, MapPinPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
@@ -11,6 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { parsePhotoEXIF } from '@/utils/exifParser';
 import { reverseGeocode } from '@/utils/reverseGeocode';
 import { useDropzone } from 'react-dropzone';
+import LocationPicker from '@/components/LocationPicker';
 
 const Upload = () => {
   const navigate = useNavigate();
@@ -24,6 +25,7 @@ const Upload = () => {
   const [aiTags, setAiTags] = useState<string[]>([]);
   const [aiDescription, setAiDescription] = useState('');
   const [aiSubjects, setAiSubjects] = useState<string[]>([]);
+  const [showLocationPicker, setShowLocationPicker] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -247,16 +249,32 @@ const Upload = () => {
                 </div>
               </div>
             ) : (
-              <div className="glass-panel p-4 flex items-center gap-3">
-                <div className="p-2 bg-muted rounded-lg">
-                  <MapPin className="w-5 h-5 text-muted-foreground" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">位置情報なし</p>
-                  <p className="text-xs text-muted-foreground">
-                    この写真にはGPS情報が含まれていません
-                  </p>
-                </div>
+              <div className="glass-panel p-4 space-y-3">
+                {showLocationPicker ? (
+                  <LocationPicker
+                    onLocationSelect={(lat, lng) => {
+                      setGpsData({ latitude: lat, longitude: lng, timestamp: null });
+                      setShowLocationPicker(false);
+                    }}
+                    onCancel={() => setShowLocationPicker(false)}
+                  />
+                ) : (
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-muted rounded-lg">
+                        <MapPin className="w-5 h-5 text-muted-foreground" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-muted-foreground">位置情報なし</p>
+                        <p className="text-xs text-muted-foreground">GPS情報が含まれていません</p>
+                      </div>
+                    </div>
+                    <Button variant="outline" size="sm" onClick={() => setShowLocationPicker(true)}>
+                      <MapPinPlus className="w-4 h-4 mr-1" />
+                      手動で設定
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
 
