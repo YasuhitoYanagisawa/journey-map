@@ -211,7 +211,7 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId, filt
     if (displayPhotos.length === 0) return;
 
     // Fit bounds to photos (adminモードではポリゴン側でフィットさせる)
-    if (viewMode !== 'admin' || !adminStats || adminStats.cells.length === 0) {
+    if (!viewMode.startsWith('admin-') || !adminStats || adminStats.cells.length === 0) {
       const bounds = new mapboxgl.LngLatBounds();
       displayPhotos.forEach((photo) => {
         bounds.extend([photo.longitude, photo.latitude]);
@@ -400,76 +400,7 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId, filt
           'heatmap-opacity': 0.8,
         },
       });
-    } else if (viewMode === 'route') {
-      // Add route line
-      const coordinates = sortedPhotos.map((photo) => [
-        photo.longitude,
-        photo.latitude,
-      ]);
-
-      map.current.addSource('route', {
-        type: 'geojson',
-        data: {
-          type: 'Feature',
-          properties: {},
-          geometry: {
-            type: 'LineString',
-            coordinates,
-          },
-        },
-      });
-
-      map.current.addLayer({
-        id: 'route-line',
-        type: 'line',
-        source: 'route',
-        layout: {
-          'line-join': 'round',
-          'line-cap': 'round',
-        },
-        paint: {
-          'line-color': 'hsl(24, 95%, 53%)',
-          'line-width': 4,
-          'line-opacity': 0.9,
-        },
-      });
-
-      // Add start/end markers
-      if (sortedPhotos.length > 0) {
-        const startEl = document.createElement('div');
-        startEl.innerHTML = `
-          <div style="
-            width: 24px; height: 24px;
-            background: hsl(120, 60%, 45%);
-            border: 3px solid white;
-            border-radius: 50%;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-          "></div>
-        `;
-        const startMarker = new mapboxgl.Marker(startEl)
-          .setLngLat([sortedPhotos[0].longitude, sortedPhotos[0].latitude])
-          .addTo(map.current);
-        markersRef.current.push(startMarker);
-
-        if (sortedPhotos.length > 1) {
-          const endEl = document.createElement('div');
-          endEl.innerHTML = `
-            <div style="
-              width: 24px; height: 24px;
-              background: hsl(0, 70%, 50%);
-              border: 3px solid white;
-              border-radius: 50%;
-              box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-            "></div>
-          `;
-          const lastPhoto = sortedPhotos[sortedPhotos.length - 1];
-          const endMarker = new mapboxgl.Marker(endEl)
-            .setLngLat([lastPhoto.longitude, lastPhoto.latitude])
-            .addTo(map.current);
-          markersRef.current.push(endMarker);
-        }
-      }
-    } else if (viewMode === 'admin' && adminStats && adminStats.cells.length > 0) {
+    } else if (viewMode.startsWith('admin-') && adminStats && adminStats.cells.length > 0) {
       // Load GeoJSON and render polygons for prefecture/city levels
       const renderAdminPolygons = async () => {
         if (!map.current || !map.current.isStyleLoaded()) return;
@@ -1060,7 +991,7 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId, filt
 
   // Highlight admin area when clicked from sidebar
   useEffect(() => {
-    if (!map.current || !isTokenSet || !mapLoaded || viewMode !== 'admin' || !adminStats) return;
+    if (!map.current || !isTokenSet || !mapLoaded || !viewMode.startsWith('admin-') || !adminStats) return;
 
     const area = adminStats.cells.find((c) => c.id === highlightedAreaId);
     if (area) {

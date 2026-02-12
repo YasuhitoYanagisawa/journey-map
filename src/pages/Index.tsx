@@ -27,7 +27,8 @@ const Index = () => {
   const [highlightedAreaId, setHighlightedAreaId] = useState<string | null>(null);
   const [filteredIndices, setFilteredIndices] = useState<number[] | null>(null);
   const [statsLabel, setStatsLabel] = useState<string>('全期間の統計');
-  const [adminLevel, setAdminLevel] = useState<AdminLevel>('prefecture');
+  const isAdminMode = viewMode.startsWith('admin-');
+  const adminLevel: AdminLevel = viewMode === 'admin-city' ? 'city' : viewMode === 'admin-town' ? 'town' : 'prefecture';
 
   const handleFilterChange = useCallback((indices: number[] | null, label: string) => {
     setFilteredIndices(indices);
@@ -268,17 +269,16 @@ const Index = () => {
                   className="w-80 p-4 space-y-4 overflow-y-auto"
                 >
                   {stats && <StatsPanel stats={stats} title={statsLabel} />}
-                  {viewMode === 'admin' && adminStats && (
+                  {isAdminMode && adminStats && (
                     <AdminStatsPanel
                       stats={adminStats}
                       adminLevel={adminLevel}
-                      onLevelChange={setAdminLevel}
                       onAreaClick={setHighlightedAreaId}
                       onUpdateAddressInfo={updateAddressInfo}
                       hasPhotosWithoutAddress={hasPhotosWithoutAddress}
                     />
                   )}
-                  {viewMode !== 'admin' && <PhotoTimeline photos={displayPhotos} />}
+                  {!isAdminMode && <PhotoTimeline photos={displayPhotos} />}
                 </motion.div>
               </div>
             </motion.div>
