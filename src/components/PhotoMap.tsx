@@ -419,21 +419,29 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId, filt
 
           const bounds = new mapboxgl.LngLatBounds();
 
-          const extendAny = (coords: any) => {
+          // For Tokyo, exclude remote islands from bounds calculation
+          const hasTokyoFeature = featureCollection.features.some(
+            (f: any) => f.properties?.name === '東京都'
+          );
+
+          const extendAny = (coords: any, isTokyoFeature: boolean) => {
             if (!coords) return;
             if (Array.isArray(coords) && coords.length === 2 && typeof coords[0] === 'number' && typeof coords[1] === 'number') {
+              // Skip Tokyo's remote islands (roughly east of 140.5° or south of 34.5°)
+              if (isTokyoFeature && (coords[0] > 140.5 || coords[1] < 34.5)) return;
               bounds.extend([coords[0], coords[1]]);
               return;
             }
             if (Array.isArray(coords)) {
-              coords.forEach(extendAny);
+              coords.forEach((c: any) => extendAny(c, isTokyoFeature));
             }
           };
 
           featureCollection.features.forEach((f: any) => {
             const geom = f?.geometry;
             if (!geom) return;
-            extendAny(geom.coordinates);
+            const isTokyo = f.properties?.name === '東京都';
+            extendAny(geom.coordinates, hasTokyoFeature && isTokyo);
           });
 
           if (!bounds.isEmpty()) {
