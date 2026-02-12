@@ -18,6 +18,9 @@ interface NearbyNewsProps {
   photos: PhotoLocation[];
 }
 
+// Module-level guard to prevent re-fetching across remounts  
+let globalAutoFetched = false;
+
 const NearbyNews = ({ photos }: NearbyNewsProps) => {
   const [news, setNews] = useState<NewsItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -38,6 +41,7 @@ const NearbyNews = ({ photos }: NearbyNewsProps) => {
   const [currentLocationName, setCurrentLocationName] = useState<string | null>(null);
   
   const hasAutoFetched = useRef(false);
+  const isFetchingRef = useRef(false);
 
   const handleNewsClick = (item: NewsItem) => {
     setSelectedNews(item);
@@ -155,6 +159,8 @@ const NearbyNews = ({ photos }: NearbyNewsProps) => {
 
   const fetchNews = async (params: { location: string; date: string }) => {
     if (!params.location || !params.date) return;
+    if (isFetchingRef.current) return; // prevent duplicate calls
+    isFetchingRef.current = true;
 
     setIsLoading(true);
     setError(null);
@@ -179,6 +185,7 @@ const NearbyNews = ({ photos }: NearbyNewsProps) => {
       setError(err instanceof Error ? err.message : 'ニュースの取得に失敗しました');
     } finally {
       setIsLoading(false);
+      isFetchingRef.current = false;
     }
   };
 
@@ -203,8 +210,9 @@ const NearbyNews = ({ photos }: NearbyNewsProps) => {
 
   // Auto-fetch on mount: get current location + today's news
   useEffect(() => {
-    if (hasAutoFetched.current) return;
+    if (hasAutoFetched.current || globalAutoFetched) return;
     hasAutoFetched.current = true;
+    globalAutoFetched = true;
     
     const autoFetch = async () => {
       if (!navigator.geolocation) return;
@@ -225,7 +233,6 @@ const NearbyNews = ({ photos }: NearbyNewsProps) => {
         if (locationName) {
           setManualLocation(locationName);
           setCurrentLocationName(locationName);
-          // Auto-search with current location + today
           fetchNews({
             location: locationName,
             date: new Date().toISOString(),
