@@ -35,7 +35,7 @@ const EventCoverageKPI = ({ events }: EventCoverageKPIProps) => {
     { icon: CalendarDays, label: '総イベント', value: `${stats.total}件`, color: 'text-primary' },
     { icon: CheckCircle2, label: '訪問済み', value: `${stats.visited}件`, color: 'text-emerald-500' },
     { icon: Target, label: 'カバー率', value: `${stats.coverageRate}%`, color: 'text-amber-500' },
-    { icon: TrendingUp, label: '今月', value: `${stats.thisMonthVisited}/${stats.thisMonth}`, color: 'text-blue-500' },
+    { icon: TrendingUp, label: '今月の達成', value: stats.thisMonth > 0 ? `${stats.thisMonthVisited}/${stats.thisMonth}件` : '−', color: 'text-blue-500' },
   ];
 
   return (
