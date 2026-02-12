@@ -31,7 +31,7 @@ export async function parsePhotoEXIF(file: File): Promise<PhotoLocation | null> 
   try {
     // GPS: use the dedicated fast path (recommended by exifr docs)
     const gps = await exifr.gps(file).catch(() => null);
-    if (!gps || typeof gps.latitude !== 'number' || typeof gps.longitude !== 'number') {
+    if (!gps || typeof gps.latitude !== 'number' || typeof gps.longitude !== 'number' || isNaN(gps.latitude) || isNaN(gps.longitude)) {
       return null;
     }
 
