@@ -517,9 +517,10 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId, filt
                 return { lng: sumLng / count, lat: sumLat / count };
               };
 
-              // Override centroids for prefectures where islands skew the position
+              // Override centroids for prefectures where default centroid is inaccurate
               const prefectureLabelOverrides: Record<string, { lng: number; lat: number }> = {
                 '東京都': { lng: 139.6917, lat: 35.6895 }, // 23区中心（新宿付近）
+                '東京都（諸島部）': { lng: 139.79, lat: 33.1 }, // 八丈島付近
               };
 
               const labelPoints = {

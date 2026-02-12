@@ -398,6 +398,14 @@ export function createPrefectureFeatures(
 ): FeatureCollection<Polygon | MultiPolygon> {
   const matchedFeatures: Feature<Polygon | MultiPolygon>[] = [];
 
+  // Helper: check if a polygon ring is in the Tokyo remote islands area
+  const isTokyoIslandRing = (ring: number[][]): boolean => {
+    if (ring.length === 0) return false;
+    const avgLng = ring.reduce((s, c) => s + c[0], 0) / ring.length;
+    const avgLat = ring.reduce((s, c) => s + c[1], 0) / ring.length;
+    return avgLng > 140.0 || avgLat < 34.5;
+  };
+
   for (const feature of geoData.features) {
     const prefName = getPrefectureName(feature);
     if (!prefName) continue;
@@ -412,14 +420,41 @@ export function createPrefectureFeatures(
           normalizedCountKey.includes(normalizedName)) {
         
         const geometry = feature.geometry;
-        if (geometry.type === 'Polygon' || geometry.type === 'MultiPolygon') {
+        if (geometry.type !== 'Polygon' && geometry.type !== 'MultiPolygon') break;
+
+        // Special handling for Tokyo: split into mainland and islands
+        if (prefName === '東京都' && geometry.type === 'MultiPolygon') {
+          const mainlandPolygons: number[][][][] = [];
+          const islandPolygons: number[][][][] = [];
+
+          for (const polygon of (geometry as MultiPolygon).coordinates) {
+            // polygon is number[][][] (array of rings)
+            if (isTokyoIslandRing(polygon[0])) {
+              islandPolygons.push(polygon);
+            } else {
+              mainlandPolygons.push(polygon);
+            }
+          }
+
+          if (mainlandPolygons.length > 0) {
+            matchedFeatures.push({
+              type: 'Feature',
+              properties: { name: '東京都', count: data.count, intensity: data.intensity },
+              geometry: { type: 'MultiPolygon', coordinates: mainlandPolygons } as MultiPolygon,
+            });
+          }
+
+          if (islandPolygons.length > 0) {
+            matchedFeatures.push({
+              type: 'Feature',
+              properties: { name: '東京都（諸島部）', count: data.count, intensity: data.intensity },
+              geometry: { type: 'MultiPolygon', coordinates: islandPolygons } as MultiPolygon,
+            });
+          }
+        } else {
           matchedFeatures.push({
             type: 'Feature',
-            properties: {
-              name: prefName,
-              count: data.count,
-              intensity: data.intensity,
-            },
+            properties: { name: prefName, count: data.count, intensity: data.intensity },
             geometry: geometry as Polygon | MultiPolygon,
           });
         }
