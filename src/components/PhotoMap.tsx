@@ -9,6 +9,7 @@ import { Key } from 'lucide-react';
 import { buildPhotoGrid, getGridCellColor, GridStats } from '@/utils/gridCalculator';
 import { AdminBoundaryStats } from '@/utils/adminBoundaryCalculator';
 import { loadPrefectureGeoJSON, loadCityGeoJSON, loadTownGeoJSON, createPrefectureFeatures, createCityFeatures, createTownFeatures, getAdminAreaColor } from '@/utils/japanGeoData';
+import { EventItem } from '@/types/event';
 
 interface PhotoMapProps {
   photos: PhotoLocation[];
@@ -18,14 +19,19 @@ interface PhotoMapProps {
   filteredIndices?: number[] | null;
   adminStats?: AdminBoundaryStats | null;
   highlightedAreaId?: string | null;
+  events?: EventItem[];
+  showEvents?: boolean;
+  showPhotos?: boolean;
+  onEventSelect?: (event: EventItem) => void;
 }
 
 const MAPBOX_TOKEN_KEY = 'phototrail_mapbox_token';
 
-const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId, filteredIndices, adminStats, highlightedAreaId }: PhotoMapProps) => {
+const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId, filteredIndices, adminStats, highlightedAreaId, events = [], showEvents = false, showPhotos = true, onEventSelect }: PhotoMapProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const markersRef = useRef<mapboxgl.Marker[]>([]);
+  const eventMarkersRef = useRef<mapboxgl.Marker[]>([]);
   const popupRef = useRef<mapboxgl.Popup | null>(null);
   
   // Load token from localStorage on init
@@ -208,7 +214,7 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId, filt
 
     cleanupMapLayers();
 
-    if (displayPhotos.length === 0) return;
+    if (displayPhotos.length === 0 || !showPhotos) return;
 
     // Fit bounds to photos (adminモードではポリゴン側でフィットさせる)
     if (!viewMode.startsWith('admin-') || !adminStats || adminStats.cells.length === 0) {
@@ -985,7 +991,7 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId, filt
 
       renderAdminPolygons();
     }
-  }, [displayPhotos, viewMode, isTokenSet, mapLoaded, gridStats, adminStats, cleanupMapLayers, showPhotoPopup]);
+  }, [displayPhotos, viewMode, isTokenSet, mapLoaded, gridStats, adminStats, cleanupMapLayers, showPhotoPopup, showPhotos]);
 
   // Grid highlight removed
 
@@ -1003,6 +1009,54 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId, filt
     }
   }, [highlightedAreaId, viewMode, isTokenSet, mapLoaded, adminStats]);
 
+  // Render event markers
+  useEffect(() => {
+    // Clear existing event markers
+    eventMarkersRef.current.forEach(m => m.remove());
+    eventMarkersRef.current = [];
+
+    if (!map.current || !isTokenSet || !mapLoaded || !showEvents) return;
+
+    const eventsWithLocation = events.filter(e => e.latitude && e.longitude);
+    if (eventsWithLocation.length === 0) return;
+
+    eventsWithLocation.forEach((event) => {
+      if (!event.latitude || !event.longitude) return;
+
+      const el = document.createElement('div');
+      el.style.cssText = `
+        width: 28px; height: 28px;
+        background: ${event.visited ? 'hsl(120, 60%, 45%)' : 'hsl(280, 70%, 55%)'};
+        border: 3px solid white;
+        border-radius: 50%;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        cursor: pointer;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 12px;
+      `;
+      el.innerHTML = event.visited ? '✓' : '🏮';
+
+      const popup = new mapboxgl.Popup({ offset: 25, maxWidth: '250px' })
+        .setHTML(`
+          <div style="padding: 8px; color: #333;">
+            <p style="font-weight: 600; font-size: 14px; margin-bottom: 4px;">${event.name}</p>
+            ${event.location_name ? `<p style="font-size: 12px; color: #666;">📍 ${event.location_name}</p>` : ''}
+            ${event.event_start ? `<p style="font-size: 12px; color: #666;">📅 ${event.event_start}${event.event_end && event.event_end !== event.event_start ? ` 〜 ${event.event_end}` : ''}</p>` : ''}
+            ${event.description ? `<p style="font-size: 11px; color: #888; margin-top: 4px;">${event.description}</p>` : ''}
+            ${event.visited ? '<p style="font-size: 12px; color: green; margin-top: 4px;">✓ 訪問済み</p>' : '<p style="font-size: 12px; color: orange; margin-top: 4px;">○ 未訪問</p>'}
+          </div>
+        `);
+
+      const marker = new mapboxgl.Marker(el)
+        .setLngLat([event.longitude, event.latitude])
+        .setPopup(popup)
+        .addTo(map.current!);
+
+      el.addEventListener('click', () => onEventSelect?.(event));
+
+      eventMarkersRef.current.push(marker);
+    });
+  }, [events, showEvents, isTokenSet, mapLoaded, onEventSelect]);
 
   if (!isTokenSet) {
     return (

@@ -1,32 +1,46 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MapPin, Camera, LogIn, LogOut, Users, Loader2, CalendarDays } from 'lucide-react';
+import { MapPin, Camera, LogIn, LogOut, Users, Loader2, CalendarDays, ListTodo, Eye, EyeOff, Sparkles } from 'lucide-react';
 import PhotoDropzone from '@/components/PhotoDropzone';
 import PhotoMap from '@/components/PhotoMap';
 import StatsPanel from '@/components/StatsPanel';
 import PhotoTimeline from '@/components/PhotoTimeline';
 import NearbyNews from '@/components/NearbyNews';
+import LayerToggle from '@/components/LayerToggle';
+import EventSearchPanel from '@/components/EventSearchPanel';
+import EventTaskList from '@/components/EventTaskList';
 
 import AdminStatsPanel from '@/components/AdminStatsPanel';
 import ViewModeToggle from '@/components/ViewModeToggle';
 import DateFilter from '@/components/DateFilter';
 import { Button } from '@/components/ui/button';
 import { ViewMode } from '@/types/photo';
+import { EventItem } from '@/types/event';
 import { calculateDayStats } from '@/utils/statsCalculator';
 
 import { buildAdminBoundaryStats, AdminLevel, AdminBoundaryStats } from '@/utils/adminBoundaryCalculator';
 import { useAuth } from '@/hooks/useAuth';
 import { usePhotos } from '@/hooks/usePhotos';
+import { useEvents } from '@/hooks/useEvents';
+import { toast } from '@/components/ui/sonner';
 
 const Index = () => {
   const navigate = useNavigate();
   const { user, signOut, loading: authLoading } = useAuth();
   const { photos, isLoading, isFetching, uploadPhotos, addLocalPhotos, updateAddressInfo } = usePhotos();
+  const { events, upcomingEvents, visitedEvents, isLoading: eventsLoading, searchEvents, addEvent, addMultipleEvents, toggleVisited, deleteEvent, autoMatchPhotos } = useEvents();
+  
   const [viewMode, setViewMode] = useState<ViewMode>('markers');
   const [highlightedAreaId, setHighlightedAreaId] = useState<string | null>(null);
   const [filteredIndices, setFilteredIndices] = useState<number[] | null>(null);
   const [statsLabel, setStatsLabel] = useState<string>('全期間の統計');
+  const [showPhotos, setShowPhotos] = useState(true);
+  const [showEvents, setShowEvents] = useState(true);
+  const [showVisited, setShowVisited] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState<EventItem | null>(null);
+  const [sidebarTab, setSidebarTab] = useState<'photos' | 'events'>('photos');
+  
   const isAdminMode = viewMode.startsWith('admin-');
   const adminLevel: AdminLevel = viewMode === 'admin-city' ? 'city' : viewMode === 'admin-town' ? 'town' : 'prefecture';
 
@@ -35,42 +49,77 @@ const Index = () => {
     setStatsLabel(label);
   }, []);
 
-  // Get filtered photos based on date filter
   const displayPhotos = useMemo(() => {
     if (filteredIndices === null) return photos;
     return filteredIndices.map(i => photos[i]).filter(Boolean);
   }, [photos, filteredIndices]);
 
-  // Calculate stats from filtered photos
   const stats = useMemo(() => {
     if (displayPhotos.length === 0) return null;
     return calculateDayStats(displayPhotos);
   }, [displayPhotos]);
 
-  // Calculate admin boundary stats
   const adminStats = useMemo((): AdminBoundaryStats | null => {
     if (displayPhotos.length === 0) return null;
     return buildAdminBoundaryStats(displayPhotos, adminLevel);
   }, [displayPhotos, adminLevel]);
 
-  // Check if any photos are missing address info
   const hasPhotosWithoutAddress = useMemo(() => {
     return photos.some(p => !p.prefecture && !p.city && !p.town);
   }, [photos]);
 
+  const eventsWithLocation = useMemo(() =>
+    events.filter(e => e.latitude && e.longitude),
+    [events]
+  );
+
   const handlePhotosLoaded = async (files: File[]) => {
     if (user) {
-      // Logged in: upload to Supabase
       await uploadPhotos(files);
     } else {
-      // Not logged in: parse locally for preview
       const { parseMultiplePhotos } = await import('@/utils/exifParser');
       const parsed = await parseMultiplePhotos(files, { concurrency: 2, yieldEvery: 3 });
       addLocalPhotos(parsed);
     }
   };
 
+  const handleAddManual = useCallback(async (result: Partial<import('@/types/event').EventSearchResult>) => {
+    await addEvent({
+      name: result.name || '',
+      description: result.description,
+      location_name: result.location_name,
+      prefecture: result.prefecture,
+      city: result.city,
+      event_start: result.event_start,
+      event_end: result.event_end,
+      source: 'manual',
+    });
+    toast.success('イベントを追加しました');
+  }, [addEvent]);
+
+  const handleAutoMatch = useCallback(async () => {
+    if (photos.length === 0) {
+      toast.error('写真がありません', { description: '先に写真をアップロードしてください' });
+      return;
+    }
+    const matched = await autoMatchPhotos(photos.map(p => ({
+      id: p.id,
+      latitude: p.latitude,
+      longitude: p.longitude,
+      timestamp: p.timestamp,
+    })));
+    if (matched === 0) {
+      toast.message('マッチするイベントが見つかりませんでした');
+    }
+  }, [photos, autoMatchPhotos]);
+
+  const handleEventClick = useCallback((event: EventItem) => {
+    setSelectedEvent(event);
+    setSidebarTab('events');
+  }, []);
+
   const hasPhotos = photos.length > 0;
+  const hasContent = hasPhotos || events.length > 0;
 
   return (
     <div className="min-h-screen bg-background">
@@ -87,26 +136,32 @@ const Index = () => {
             </div>
             <div>
               <h1 className="text-xl font-bold gradient-text">PhotoTrail</h1>
-              <p className="text-xs text-muted-foreground">写真から1日の軌跡を可視化</p>
+              <p className="text-xs text-muted-foreground">写真とイベントを地図で管理</p>
             </div>
           </motion.div>
 
-          {hasPhotos && (
+          {hasContent && (
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="flex items-center gap-2 text-sm text-muted-foreground"
+              className="flex items-center gap-3 text-sm text-muted-foreground"
             >
-              <Camera className="w-4 h-4" />
-              <span>{photos.length}枚の写真</span>
+              {hasPhotos && (
+                <span className="flex items-center gap-1">
+                  <Camera className="w-4 h-4" />
+                  {photos.length}枚
+                </span>
+              )}
+              {events.length > 0 && (
+                <span className="flex items-center gap-1">
+                  <CalendarDays className="w-4 h-4" />
+                  {events.length}件
+                </span>
+              )}
             </motion.div>
           )}
           
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => navigate('/events')}>
-              <CalendarDays className="w-4 h-4 mr-2" />
-              イベント
-            </Button>
             {user ? (
               <>
                 <Button variant="outline" size="sm" onClick={() => navigate('/feed')}>
@@ -131,7 +186,6 @@ const Index = () => {
       <main className="pt-20">
         <AnimatePresence mode="wait">
           {isFetching ? (
-            /* Loading State */
             <motion.div
               key="loading"
               initial={{ opacity: 0 }}
@@ -140,9 +194,9 @@ const Index = () => {
               className="min-h-[calc(100vh-5rem)] flex flex-col items-center justify-center"
             >
               <Loader2 className="w-8 h-8 animate-spin text-primary mb-4" />
-              <p className="text-muted-foreground">写真を読み込み中...</p>
+              <p className="text-muted-foreground">データを読み込み中...</p>
             </motion.div>
-          ) : !hasPhotos ? (
+          ) : !hasContent ? (
             /* Welcome Screen */
             <motion.div
               key="welcome"
@@ -192,8 +246,8 @@ const Index = () => {
                 {[
                   { icon: '📍', label: 'マーカー表示' },
                   { icon: '🔥', label: 'ヒートマップ' },
-                  { icon: '🛤️', label: 'ルート表示' },
-                  { icon: '🗺️', label: 'グリッド統計' },
+                  { icon: '🏮', label: 'イベント管理' },
+                  { icon: '🗺️', label: '行政区統計' },
                 ].map((feature) => (
                   <div key={feature.label} className="space-y-2">
                     <span className="text-3xl">{feature.icon}</span>
@@ -212,9 +266,11 @@ const Index = () => {
               className="flex flex-col"
             >
               {/* News Section - Top */}
-              <div className="px-4 pt-4">
-                <NearbyNews photos={displayPhotos} />
-              </div>
+              {hasPhotos && (
+                <div className="px-4 pt-4">
+                  <NearbyNews photos={displayPhotos} />
+                </div>
+              )}
 
               {/* Map + Sidebar Row */}
               <div className="h-[calc(100vh-5rem)] flex">
@@ -222,13 +278,26 @@ const Index = () => {
                 <div className="flex-1 relative p-4">
                   {/* View Mode Toggle */}
                   <div className="absolute top-6 left-6 z-10 space-y-2">
-                    <ViewModeToggle 
-                      currentMode={viewMode}
-                      onChange={setViewMode}
-                    />
-                    <DateFilter 
-                      photos={photos}
-                      onFilterChange={handleFilterChange}
+                    {hasPhotos && (
+                      <>
+                        <ViewModeToggle 
+                          currentMode={viewMode}
+                          onChange={setViewMode}
+                        />
+                        <DateFilter 
+                          photos={photos}
+                          onFilterChange={handleFilterChange}
+                        />
+                      </>
+                    )}
+                    {/* Layer Toggle */}
+                    <LayerToggle
+                      showPhotos={showPhotos}
+                      showEvents={showEvents}
+                      onTogglePhotos={() => setShowPhotos(p => !p)}
+                      onToggleEvents={() => setShowEvents(p => !p)}
+                      photoCount={displayPhotos.length}
+                      eventCount={eventsWithLocation.length}
                     />
                   </div>
 
@@ -254,10 +323,14 @@ const Index = () => {
 
                   <PhotoMap
                     photos={photos}
-                    viewMode={viewMode}
-                    filteredIndices={filteredIndices}
-                    adminStats={adminStats}
+                    viewMode={showPhotos ? viewMode : 'markers'}
+                    filteredIndices={showPhotos ? filteredIndices : []}
+                    adminStats={showPhotos ? adminStats : null}
                     highlightedAreaId={highlightedAreaId}
+                    events={eventsWithLocation}
+                    showEvents={showEvents}
+                    showPhotos={showPhotos}
+                    onEventSelect={handleEventClick}
                   />
                 </div>
 
@@ -268,17 +341,98 @@ const Index = () => {
                   transition={{ delay: 0.2 }}
                   className="w-80 p-4 space-y-4 overflow-y-auto"
                 >
-                  {stats && <StatsPanel stats={stats} title={statsLabel} />}
-                  {isAdminMode && adminStats && (
-                    <AdminStatsPanel
-                      stats={adminStats}
-                      adminLevel={adminLevel}
-                      onAreaClick={setHighlightedAreaId}
-                      onUpdateAddressInfo={updateAddressInfo}
-                      hasPhotosWithoutAddress={hasPhotosWithoutAddress}
-                    />
+                  {/* Sidebar Tab Toggle */}
+                  <div className="flex gap-1 p-1 rounded-lg bg-secondary/30">
+                    <button
+                      onClick={() => setSidebarTab('photos')}
+                      className={`flex-1 px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-1.5 ${
+                        sidebarTab === 'photos' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      <Camera className="w-3.5 h-3.5" />
+                      写真
+                    </button>
+                    <button
+                      onClick={() => setSidebarTab('events')}
+                      className={`flex-1 px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-1.5 ${
+                        sidebarTab === 'events' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      <CalendarDays className="w-3.5 h-3.5" />
+                      イベント
+                    </button>
+                  </div>
+
+                  {sidebarTab === 'photos' ? (
+                    <>
+                      {stats && <StatsPanel stats={stats} title={statsLabel} />}
+                      {isAdminMode && adminStats && (
+                        <AdminStatsPanel
+                          stats={adminStats}
+                          adminLevel={adminLevel}
+                          onAreaClick={setHighlightedAreaId}
+                          onUpdateAddressInfo={updateAddressInfo}
+                          hasPhotosWithoutAddress={hasPhotosWithoutAddress}
+                        />
+                      )}
+                      {!isAdminMode && <PhotoTimeline photos={displayPhotos} />}
+                    </>
+                  ) : (
+                    <>
+                      {/* Event Search */}
+                      <EventSearchPanel
+                        onSearch={searchEvents}
+                        onAddResults={addMultipleEvents}
+                        onAddManual={handleAddManual}
+                        isLoading={eventsLoading}
+                        isLoggedIn={!!user}
+                      />
+
+                      {/* Event Task List */}
+                      <div className="glass-panel p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-2">
+                            <ListTodo className="w-5 h-5 text-primary" />
+                            <h3 className="font-semibold text-sm">
+                              {showVisited ? '訪問済み' : '予定イベント'}
+                              <span className="text-muted-foreground ml-1">
+                                ({showVisited ? visitedEvents.length : upcomingEvents.length})
+                              </span>
+                            </h3>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setShowVisited(!showVisited)}
+                            className="h-7 text-xs gap-1"
+                          >
+                            {showVisited ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                            {showVisited ? '予定' : '訪問済み'}
+                          </Button>
+                        </div>
+
+                        {user && !showVisited && upcomingEvents.length > 0 && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleAutoMatch}
+                            className="w-full mb-3 gap-2 text-xs"
+                          >
+                            <Camera className="w-3.5 h-3.5" />
+                            写真から自動消込
+                          </Button>
+                        )}
+
+                        <EventTaskList
+                          events={events}
+                          onToggleVisited={toggleVisited}
+                          onDelete={deleteEvent}
+                          onEventClick={handleEventClick}
+                          showVisited={showVisited}
+                        />
+                      </div>
+                    </>
                   )}
-                  {!isAdminMode && <PhotoTimeline photos={displayPhotos} />}
                 </motion.div>
               </div>
             </motion.div>
