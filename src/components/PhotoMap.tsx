@@ -194,7 +194,7 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId, filt
 
   // Update markers/visualization
   useEffect(() => {
-    if (!map.current || !isTokenSet || !mapLoaded) return;
+    if (!map.current || !isTokenSet || !mapLoaded || !map.current.isStyleLoaded()) return;
 
     // Clear existing markers
     markersRef.current.forEach((marker) => marker.remove());
