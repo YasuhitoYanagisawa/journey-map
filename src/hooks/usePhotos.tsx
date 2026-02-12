@@ -13,7 +13,7 @@ export const usePhotos = () => {
   const [isFetching, setIsFetching] = useState(true);
 
   // Fetch photos from Supabase on mount
-  const fetchPhotos = useCallback(async () => {
+  const fetchPhotos = async () => {
     if (!user) {
       setIsFetching(false);
       return;
@@ -50,17 +50,18 @@ export const usePhotos = () => {
     } finally {
       setIsFetching(false);
     }
-  }, [user]);
+  };
 
+  // Always refetch on mount
   useEffect(() => {
     if (!user) {
-      // Clear photos when user logs out
       setPhotos([]);
       setIsFetching(false);
       return;
     }
     fetchPhotos();
-  }, [fetchPhotos, user]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
 
   // Upload files and save to Supabase
   const uploadPhotos = useCallback(async (files: File[]): Promise<PhotoLocation[]> => {
