@@ -295,25 +295,6 @@ const Index = () => {
                     />
                   </div>
 
-                  {/* Add More Photos Button */}
-                  <div className="absolute bottom-6 left-6 z-10">
-                    <label className="glass-panel px-4 py-2 cursor-pointer flex items-center gap-2 hover:border-primary/50 transition-colors">
-                      <Camera className="w-4 h-4 text-primary" />
-                      <span className="text-sm">写真を追加</span>
-                      <input
-                        type="file"
-                        multiple
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(e) => {
-                          const files = Array.from(e.target.files || []);
-                          if (files.length > 0) {
-                            handlePhotosLoaded(files);
-                          }
-                        }}
-                      />
-                    </label>
-                  </div>
 
                   <PhotoMap
                     photos={photos}
