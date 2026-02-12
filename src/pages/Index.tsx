@@ -7,14 +7,14 @@ import PhotoMap from '@/components/PhotoMap';
 import StatsPanel from '@/components/StatsPanel';
 import PhotoTimeline from '@/components/PhotoTimeline';
 import NearbyNews from '@/components/NearbyNews';
-import GridStatsPanel from '@/components/GridStatsPanel';
+
 import AdminStatsPanel from '@/components/AdminStatsPanel';
 import ViewModeToggle from '@/components/ViewModeToggle';
 import DateFilter from '@/components/DateFilter';
 import { Button } from '@/components/ui/button';
 import { ViewMode } from '@/types/photo';
 import { calculateDayStats } from '@/utils/statsCalculator';
-import { GridStats } from '@/utils/gridCalculator';
+
 import { buildAdminBoundaryStats, AdminLevel, AdminBoundaryStats } from '@/utils/adminBoundaryCalculator';
 import { useAuth } from '@/hooks/useAuth';
 import { usePhotos } from '@/hooks/usePhotos';
@@ -24,8 +24,6 @@ const Index = () => {
   const { user, signOut, loading: authLoading } = useAuth();
   const { photos, isLoading, isFetching, uploadPhotos, addLocalPhotos, updateAddressInfo } = usePhotos();
   const [viewMode, setViewMode] = useState<ViewMode>('markers');
-  const [gridStats, setGridStats] = useState<GridStats | null>(null);
-  const [highlightedCellId, setHighlightedCellId] = useState<string | null>(null);
   const [highlightedAreaId, setHighlightedAreaId] = useState<string | null>(null);
   const [filteredIndices, setFilteredIndices] = useState<number[] | null>(null);
   const [statsLabel, setStatsLabel] = useState<string>('全期間の統計');
@@ -256,8 +254,6 @@ const Index = () => {
                   <PhotoMap
                     photos={photos}
                     viewMode={viewMode}
-                    onGridStatsChange={setGridStats}
-                    highlightedCellId={highlightedCellId}
                     filteredIndices={filteredIndices}
                     adminStats={adminStats}
                     highlightedAreaId={highlightedAreaId}
@@ -272,12 +268,6 @@ const Index = () => {
                   className="w-80 p-4 space-y-4 overflow-y-auto"
                 >
                   {stats && <StatsPanel stats={stats} title={statsLabel} />}
-                  {viewMode === 'grid' && gridStats && (
-                    <GridStatsPanel
-                      gridStats={gridStats}
-                      onCellClick={setHighlightedCellId}
-                    />
-                  )}
                   {viewMode === 'admin' && adminStats && (
                     <AdminStatsPanel
                       stats={adminStats}
@@ -288,7 +278,7 @@ const Index = () => {
                       hasPhotosWithoutAddress={hasPhotosWithoutAddress}
                     />
                   )}
-                  {viewMode !== 'grid' && viewMode !== 'admin' && <PhotoTimeline photos={displayPhotos} />}
+                  {viewMode !== 'admin' && <PhotoTimeline photos={displayPhotos} />}
                 </motion.div>
               </div>
             </motion.div>

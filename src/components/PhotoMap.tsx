@@ -44,11 +44,8 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId, filt
     return filteredIndices.map(i => photos[i]).filter(Boolean);
   }, [photos, filteredIndices]);
 
-  // Calculate grid stats when in grid mode
-  const gridStats = useMemo(() => {
-    if (viewMode !== 'grid' || displayPhotos.length === 0) return null;
-    return buildPhotoGrid(displayPhotos, 500);
-  }, [displayPhotos, viewMode]);
+  // Grid stats removed - using admin boundaries instead
+  const gridStats = null;
 
   // Notify parent of grid stats
   useEffect(() => {
@@ -472,77 +469,6 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId, filt
           markersRef.current.push(endMarker);
         }
       }
-    } else if (viewMode === 'grid' && gridStats) {
-      // Add grid cells as fill polygons
-      const features = gridStats.cells.map((cell) => ({
-        type: 'Feature' as const,
-        properties: {
-          id: cell.id,
-          count: cell.count,
-          intensity: cell.intensity,
-          color: getGridCellColor(cell.intensity),
-        },
-        geometry: {
-          type: 'Polygon' as const,
-          coordinates: [
-            [
-              [cell.bounds.minLng, cell.bounds.minLat],
-              [cell.bounds.maxLng, cell.bounds.minLat],
-              [cell.bounds.maxLng, cell.bounds.maxLat],
-              [cell.bounds.minLng, cell.bounds.maxLat],
-              [cell.bounds.minLng, cell.bounds.minLat],
-            ],
-          ],
-        },
-      }));
-
-      map.current.addSource('grid', {
-        type: 'geojson',
-        data: {
-          type: 'FeatureCollection',
-          features,
-        },
-      });
-
-      // Fill layer
-      map.current.addLayer({
-        id: 'grid-fill',
-        type: 'fill',
-        source: 'grid',
-        paint: {
-          'fill-color': ['get', 'color'],
-          'fill-opacity': 0.55,
-        },
-      });
-
-      // Outline layer
-      map.current.addLayer({
-        id: 'grid-outline',
-        type: 'line',
-        source: 'grid',
-        paint: {
-          'line-color': '#fff',
-          'line-width': 1,
-          'line-opacity': 0.4,
-        },
-      });
-
-      // Label layer (count)
-      map.current.addLayer({
-        id: 'grid-label',
-        type: 'symbol',
-        source: 'grid',
-        layout: {
-          'text-field': ['get', 'count'],
-          'text-size': 12,
-          'text-font': ['DIN Pro Medium', 'Arial Unicode MS Bold'],
-        },
-        paint: {
-          'text-color': '#fff',
-          'text-halo-color': 'rgba(0,0,0,0.6)',
-          'text-halo-width': 1,
-        },
-      });
     } else if (viewMode === 'admin' && adminStats && adminStats.cells.length > 0) {
       // Load GeoJSON and render polygons for prefecture/city levels
       const renderAdminPolygons = async () => {
@@ -1130,19 +1056,7 @@ const PhotoMap = ({ photos, viewMode, onGridStatsChange, highlightedCellId, filt
     }
   }, [displayPhotos, viewMode, isTokenSet, mapLoaded, gridStats, adminStats, cleanupMapLayers, showPhotoPopup]);
 
-  // Highlight cell when clicked from sidebar
-  useEffect(() => {
-    if (!map.current || !isTokenSet || !mapLoaded || viewMode !== 'grid' || !gridStats) return;
-
-    const cell = gridStats.cells.find((c) => c.id === highlightedCellId);
-    if (cell) {
-      map.current.flyTo({
-        center: [cell.centerLng, cell.centerLat],
-        zoom: 15,
-        duration: 800,
-      });
-    }
-  }, [highlightedCellId, viewMode, isTokenSet, mapLoaded, gridStats]);
+  // Grid highlight removed
 
   // Highlight admin area when clicked from sidebar
   useEffect(() => {
