@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MapPin, Heart, MessageCircle, Share2, User, Plus, LogOut, Map, MoreVertical, Trash2, Bookmark } from 'lucide-react';
+import { MapPin, Heart, MessageCircle, Share2, User, Plus, LogOut, Map, MoreVertical, Trash2, Bookmark, Image } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -74,6 +74,7 @@ const Feed = () => {
       const { data: photosData, error: photosError } = await supabase
         .from('photos')
         .select('*')
+        .eq('is_archived', false)
         .order('created_at', { ascending: false })
         .limit(50);
 
@@ -276,18 +277,18 @@ const Feed = () => {
     if (!deleteTarget || !user) return;
     setDeleting(true);
     try {
-      // Delete from storage
-      await supabase.storage.from('photos').remove([deleteTarget.storage_path]);
-      // Delete related likes and comments first, then the photo
-      await supabase.from('likes').delete().eq('photo_id', deleteTarget.id);
-      await supabase.from('comments').delete().eq('photo_id', deleteTarget.id);
-      const { error } = await supabase.from('photos').delete().eq('id', deleteTarget.id).eq('user_id', user.id);
+      // Archive instead of delete - just hide from feed
+      const { error } = await supabase
+        .from('photos')
+        .update({ is_archived: true })
+        .eq('id', deleteTarget.id)
+        .eq('user_id', user.id);
       if (error) throw error;
       setPhotos(prev => prev.filter(p => p.id !== deleteTarget.id));
-      toast.success('写真を削除しました');
+      toast.success('写真をアーカイブしました');
     } catch (error) {
-      console.error('Error deleting photo:', error);
-      toast.error('写真の削除に失敗しました');
+      console.error('Error archiving photo:', error);
+      toast.error('写真のアーカイブに失敗しました');
     } finally {
       setDeleting(false);
       setDeleteTarget(null);
@@ -330,6 +331,14 @@ const Feed = () => {
               title="マップビュー"
             >
               <Map className="w-5 h-5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => navigate('/gallery')}
+              title="マイギャラリー"
+            >
+              <Image className="w-5 h-5" />
             </Button>
             <Button
               variant="ghost"
@@ -531,9 +540,9 @@ const Feed = () => {
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>写真を削除しますか？</AlertDialogTitle>
+            <AlertDialogTitle>写真をアーカイブしますか？</AlertDialogTitle>
             <AlertDialogDescription>
-              この操作は取り消せません。写真とそれに関連するいいね・コメントもすべて削除されます。
+              フィードから非表示になりますが、写真データは残ります。ギャラリーからいつでも復元できます。
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -543,7 +552,7 @@ const Feed = () => {
               disabled={deleting}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {deleting ? '削除中...' : '削除する'}
+              {deleting ? 'アーカイブ中...' : 'アーカイブする'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

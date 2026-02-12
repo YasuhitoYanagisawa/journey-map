@@ -174,6 +174,7 @@ export type Database = {
           created_at: string
           filename: string
           id: string
+          is_archived: boolean
           latitude: number | null
           longitude: number | null
           prefecture: string | null
@@ -190,6 +191,7 @@ export type Database = {
           created_at?: string
           filename: string
           id?: string
+          is_archived?: boolean
           latitude?: number | null
           longitude?: number | null
           prefecture?: string | null
@@ -206,6 +208,7 @@ export type Database = {
           created_at?: string
           filename?: string
           id?: string
+          is_archived?: boolean
           latitude?: number | null
           longitude?: number | null
           prefecture?: string | null
