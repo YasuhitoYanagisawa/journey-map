@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MapPin, Heart, MessageCircle, Share2, User, Plus, LogOut, Map, MoreVertical, Trash2, Bookmark, Image, Archive, Pencil, Check, X } from 'lucide-react';
+import { MapPin, Heart, MessageCircle, Share2, User, Plus, LogOut, Map, MoreVertical, Trash2, Bookmark, Image, Archive, Pencil, Check, X, MapPinPlus } from 'lucide-react';
 import InlineUploadForm from '@/components/InlineUploadForm';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -9,6 +9,8 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { toast } from '@/components/ui/sonner';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import LocationPicker from '@/components/LocationPicker';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { formatDistanceToNow } from 'date-fns';
@@ -60,6 +62,7 @@ const Feed = () => {
   const [deleting, setDeleting] = useState(false);
   const [editingComment, setEditingComment] = useState<string | null>(null);
   const [editCommentText, setEditCommentText] = useState('');
+  const [locationPickerTarget, setLocationPickerTarget] = useState<Photo | null>(null);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -330,6 +333,36 @@ const Feed = () => {
     return data.publicUrl;
   };
 
+  const handleSetLocation = async (photoId: string, lat: number, lng: number) => {
+    try {
+      const { reverseGeocode } = await import('@/utils/reverseGeocode');
+      const geocode = await reverseGeocode(lat, lng);
+
+      const { error } = await supabase
+        .from('photos')
+        .update({
+          latitude: lat,
+          longitude: lng,
+          prefecture: geocode.prefecture,
+          city: geocode.city,
+          town: geocode.town,
+        })
+        .eq('id', photoId)
+        .eq('user_id', user!.id);
+
+      if (error) throw error;
+
+      setPhotos(prev => prev.map(p =>
+        p.id === photoId ? { ...p, latitude: lat, longitude: lng } : p
+      ));
+      setLocationPickerTarget(null);
+      toast.success('位置情報を設定しました');
+    } catch (error) {
+      console.error('Error setting location:', error);
+      toast.error('位置情報の設定に失敗しました');
+    }
+  };
+
   if (loading || loadingPhotos) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -454,6 +487,18 @@ const Feed = () => {
                           </button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
+                          {!photo.latitude && !photo.longitude && (
+                            <DropdownMenuItem onClick={() => setLocationPickerTarget(photo)}>
+                              <MapPinPlus className="w-4 h-4 mr-2" />
+                              位置を設定
+                            </DropdownMenuItem>
+                          )}
+                          {photo.latitude && photo.longitude && (
+                            <DropdownMenuItem onClick={() => setLocationPickerTarget(photo)}>
+                              <MapPin className="w-4 h-4 mr-2" />
+                              位置を変更
+                            </DropdownMenuItem>
+                          )}
                           <DropdownMenuItem
                             className="text-destructive focus:text-destructive"
                             onClick={() => setDeleteTarget(photo)}
@@ -625,6 +670,26 @@ const Feed = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Location Picker Dialog */}
+      <Dialog open={!!locationPickerTarget} onOpenChange={(open) => !open && setLocationPickerTarget(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>位置情報を設定</DialogTitle>
+          </DialogHeader>
+          {locationPickerTarget && (
+            <LocationPicker
+              onLocationSelect={(lat, lng) => handleSetLocation(locationPickerTarget.id, lat, lng)}
+              onCancel={() => setLocationPickerTarget(null)}
+              initialCenter={
+                locationPickerTarget.latitude && locationPickerTarget.longitude
+                  ? [locationPickerTarget.longitude, locationPickerTarget.latitude]
+                  : undefined
+              }
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
