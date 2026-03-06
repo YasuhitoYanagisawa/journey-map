@@ -76,6 +76,56 @@ const Upload = () => {
     multiple: true,
   });
 
+  // Camera capture: get GPS from browser geolocation, then open camera
+  const handleCameraCapture = useCallback(async () => {
+    setGettingLocation(true);
+    try {
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0,
+        });
+      });
+      const { latitude, longitude } = position.coords;
+      cameraInputRef.current?.setAttribute('data-lat', latitude.toString());
+      cameraInputRef.current?.setAttribute('data-lng', longitude.toString());
+      cameraInputRef.current?.click();
+    } catch (error) {
+      console.error('Geolocation error:', error);
+      toast.error('位置情報を取得できませんでした', {
+        description: 'ブラウザの位置情報を許可してください',
+      });
+      cameraInputRef.current?.removeAttribute('data-lat');
+      cameraInputRef.current?.removeAttribute('data-lng');
+      cameraInputRef.current?.click();
+    } finally {
+      setGettingLocation(false);
+    }
+  }, []);
+
+  const handleCameraFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    e.target.value = '';
+    const lat = cameraInputRef.current?.getAttribute('data-lat');
+    const lng = cameraInputRef.current?.getAttribute('data-lng');
+    for (const file of files) {
+      const preview = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (ev) => resolve(ev.target?.result as string);
+        reader.readAsDataURL(file);
+      });
+      const gpsData = lat && lng
+        ? { latitude: parseFloat(lat), longitude: parseFloat(lng), timestamp: new Date() }
+        : null;
+      setPendingFiles(prev => [...prev, { file, preview, gpsData, caption: '', status: 'pending' }]);
+    }
+    if (lat && lng) {
+      toast.success('📍 現在地の位置情報を付与しました');
+    }
+  }, []);
+
   const removeFile = (index: number) => {
     setPendingFiles(prev => prev.filter((_, i) => i !== index));
   };
