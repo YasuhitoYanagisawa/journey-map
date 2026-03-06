@@ -31,7 +31,8 @@ const Upload = () => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [showLocationPicker, setShowLocationPicker] = useState<number | null>(null);
   const [gettingLocation, setGettingLocation] = useState(false);
-  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const [showCamera, setShowCamera] = useState(false);
+  const [pendingCoords, setPendingCoords] = useState<{ latitude: number; longitude: number } | null>(null);
 
   useEffect(() => {
     if (!loading && !user) {
