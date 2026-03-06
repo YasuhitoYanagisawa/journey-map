@@ -73,24 +73,45 @@ export const usePhotos = () => {
     setIsLoading(true);
 
     try {
-      // Parse EXIF from files
-      const parsedPhotos = await parseMultiplePhotos(files, {
-        concurrency: 2,
-        yieldEvery: 3,
-      });
+      let photosToUpload: Array<{ file: File; latitude: number; longitude: number; timestamp: Date }> = [];
 
-      if (parsedPhotos.length === 0) {
-        toast.error('位置情報のある写真が見つかりませんでした', {
-          description: '位置情報（GPS）がOFFの写真はスキップされます。',
+      if (gpsOverride) {
+        // Camera capture: use browser geolocation instead of EXIF
+        photosToUpload = files.map(f => ({
+          file: f,
+          latitude: gpsOverride.latitude,
+          longitude: gpsOverride.longitude,
+          timestamp: new Date(),
+        }));
+      } else {
+        // Normal upload: parse EXIF for GPS
+        const parsedPhotos = await parseMultiplePhotos(files, {
+          concurrency: 2,
+          yieldEvery: 3,
         });
-        return [];
-      }
 
-      const skipped = files.length - parsedPhotos.length;
-      if (skipped > 0) {
-        toast.message('一部の写真をスキップしました', {
-          description: `読み込み: ${parsedPhotos.length}枚 / スキップ: ${skipped}枚`,
-        });
+        if (parsedPhotos.length === 0) {
+          toast.error('位置情報のある写真が見つかりませんでした', {
+            description: '位置情報（GPS）がOFFの写真はスキップされます。',
+          });
+          return [];
+        }
+
+        const skipped = files.length - parsedPhotos.length;
+        if (skipped > 0) {
+          toast.message('一部の写真をスキップしました', {
+            description: `読み込み: ${parsedPhotos.length}枚 / スキップ: ${skipped}枚`,
+          });
+        }
+
+        photosToUpload = parsedPhotos
+          .filter(p => p.originalFile)
+          .map(p => ({
+            file: p.originalFile!,
+            latitude: p.latitude,
+            longitude: p.longitude,
+            timestamp: p.timestamp,
+          }));
       }
 
       // Upload each photo to storage and save to DB
