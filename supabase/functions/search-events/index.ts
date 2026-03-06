@@ -7,7 +7,7 @@ const corsHeaders = {
 
 // --- Weave Tracing Helper ---
 const WEAVE_BASE_URL = "https://trace.wandb.ai";
-const WEAVE_PROJECT_ID = "journey-map-monitoring";
+const WEAVE_PROJECT_ID = "chattso-gpt/Journey Map Monitoring";
 
 async function weaveCallStart(opName: string, inputs: Record<string, unknown>, traceId?: string) {
   const WANDB_API_KEY = Deno.env.get("WANDB_API_KEY");
