@@ -13,6 +13,7 @@ import { parsePhotoEXIF } from '@/utils/exifParser';
 import { reverseGeocode } from '@/utils/reverseGeocode';
 import { useDropzone } from 'react-dropzone';
 import LocationPicker from '@/components/LocationPicker';
+import InAppCamera from '@/components/InAppCamera';
 
 interface PendingFile {
   file: File;
