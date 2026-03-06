@@ -46,7 +46,6 @@ const PhotoDropzone = ({ onFilesSelected, onCameraCapture, isLoading = false }: 
     e.stopPropagation();
 
     if (!onCameraCapture) {
-      // Fallback: just open camera without geolocation
       cameraInputRef.current?.click();
       return;
     }
@@ -61,16 +60,16 @@ const PhotoDropzone = ({ onFilesSelected, onCameraCapture, isLoading = false }: 
         });
       });
       const { latitude, longitude } = position.coords;
-      cameraInputRef.current?.setAttribute('data-lat', latitude.toString());
-      cameraInputRef.current?.setAttribute('data-lng', longitude.toString());
+      // Persist to sessionStorage to survive page unload on mobile
+      sessionStorage.setItem('camera_gps', JSON.stringify({ latitude, longitude, timestamp: Date.now() }));
+      console.log('[PhotoDropzone] GPS acquired:', latitude, longitude);
       cameraInputRef.current?.click();
     } catch (error) {
-      console.error('Geolocation error:', error);
+      console.error('[PhotoDropzone] Geolocation error:', error);
       toast.error('位置情報を取得できませんでした', {
         description: 'ブラウザの位置情報を許可してください',
       });
-      cameraInputRef.current?.removeAttribute('data-lat');
-      cameraInputRef.current?.removeAttribute('data-lng');
+      sessionStorage.removeItem('camera_gps');
       cameraInputRef.current?.click();
     } finally {
       setGettingLocation(false);
@@ -80,20 +79,33 @@ const PhotoDropzone = ({ onFilesSelected, onCameraCapture, isLoading = false }: 
   const handleCameraFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     e.target.value = '';
+    console.log('[PhotoDropzone] Camera file change, files:', files.length);
     if (files.length === 0) return;
 
-    const lat = cameraInputRef.current?.getAttribute('data-lat');
-    const lng = cameraInputRef.current?.getAttribute('data-lng');
+    // Read GPS from sessionStorage (survives page reload on mobile)
+    const stored = sessionStorage.getItem('camera_gps');
+    sessionStorage.removeItem('camera_gps');
 
-    if (lat && lng && onCameraCapture) {
-      for (const file of files) {
-        onCameraCapture(file, { latitude: parseFloat(lat), longitude: parseFloat(lng) });
+    if (stored && onCameraCapture) {
+      try {
+        const gps = JSON.parse(stored);
+        // Only use if GPS was acquired within the last 5 minutes
+        if (Date.now() - gps.timestamp < 5 * 60 * 1000) {
+          console.log('[PhotoDropzone] Using stored GPS:', gps.latitude, gps.longitude);
+          for (const file of files) {
+            onCameraCapture(file, { latitude: gps.latitude, longitude: gps.longitude });
+          }
+          toast.success('📍 現在地の位置情報を付与しました');
+          return;
+        }
+      } catch (err) {
+        console.error('[PhotoDropzone] Failed to parse stored GPS:', err);
       }
-      toast.success('📍 現在地の位置情報を付与しました');
-    } else {
-      // No GPS available, fall back to normal flow
-      onFilesSelected(files);
     }
+
+    // No GPS available, fall back to normal flow
+    console.log('[PhotoDropzone] No GPS, using normal flow');
+    onFilesSelected(files);
   }, [onCameraCapture, onFilesSelected]);
 
   const handleFileClick = (e: React.MouseEvent) => {
