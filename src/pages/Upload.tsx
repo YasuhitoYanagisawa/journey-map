@@ -1,7 +1,7 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { MapPin, Upload as UploadIcon, Image, ArrowLeft, X, Sparkles, Loader2, MapPinPlus, CheckCircle2 } from 'lucide-react';
+import { MapPin, Upload as UploadIcon, Image, ArrowLeft, X, Sparkles, Loader2, MapPinPlus, CheckCircle2, Camera } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
