@@ -320,6 +320,9 @@ const Index = () => {
                   {/* Event Coverage KPI */}
                   {events.length > 0 && <EventCoverageKPI events={events} />}
 
+                  {/* AI Evaluation */}
+                  {user && <EvaluationPanel />}
+
                   {/* Event Task List */}
                   <div className="glass-panel p-4">
                     <div className="flex items-center justify-between mb-3">
