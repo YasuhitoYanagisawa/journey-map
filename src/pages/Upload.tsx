@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { MapPin, Upload as UploadIcon, Image, ArrowLeft, X, Sparkles, Loader2, MapPinPlus, CheckCircle2, Camera } from 'lucide-react';
@@ -13,6 +13,7 @@ import { parsePhotoEXIF } from '@/utils/exifParser';
 import { reverseGeocode } from '@/utils/reverseGeocode';
 import { useDropzone } from 'react-dropzone';
 import LocationPicker from '@/components/LocationPicker';
+import InAppCamera from '@/components/InAppCamera';
 
 interface PendingFile {
   file: File;
@@ -30,7 +31,8 @@ const Upload = () => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [showLocationPicker, setShowLocationPicker] = useState<number | null>(null);
   const [gettingLocation, setGettingLocation] = useState(false);
-  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const [showCamera, setShowCamera] = useState(false);
+  const [pendingCoords, setPendingCoords] = useState<{ latitude: number; longitude: number } | null>(null);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -76,9 +78,10 @@ const Upload = () => {
     multiple: true,
   });
 
-  // Camera capture: get GPS from browser geolocation, then open camera
+  // Camera capture: get GPS from browser geolocation, then open in-app camera
   const handleCameraCapture = useCallback(async () => {
     setGettingLocation(true);
+    let coords: { latitude: number; longitude: number } | null = null;
     try {
       const position = await new Promise<GeolocationPosition>((resolve, reject) => {
         navigator.geolocation.getCurrentPosition(resolve, reject, {
@@ -87,51 +90,36 @@ const Upload = () => {
           maximumAge: 0,
         });
       });
-      const { latitude, longitude } = position.coords;
-      sessionStorage.setItem('camera_gps', JSON.stringify({ latitude, longitude, timestamp: Date.now() }));
-      cameraInputRef.current?.click();
+      coords = { latitude: position.coords.latitude, longitude: position.coords.longitude };
     } catch (error) {
       console.error('Geolocation error:', error);
       toast.error('位置情報を取得できませんでした', {
         description: 'ブラウザの位置情報を許可してください',
       });
-      sessionStorage.removeItem('camera_gps');
-      cameraInputRef.current?.click();
     } finally {
       setGettingLocation(false);
     }
+    setPendingCoords(coords);
+    setShowCamera(true);
   }, []);
 
-  const handleCameraFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    if (files.length === 0) return;
-    e.target.value = '';
-
-    const stored = sessionStorage.getItem('camera_gps');
-    sessionStorage.removeItem('camera_gps');
-    let gpsData: PendingFile['gpsData'] = null;
-
-    if (stored) {
-      try {
-        const gps = JSON.parse(stored);
-        if (Date.now() - gps.timestamp < 5 * 60 * 1000) {
-          gpsData = { latitude: gps.latitude, longitude: gps.longitude, timestamp: new Date() };
-        }
-      } catch {}
-    }
-
-    for (const file of files) {
-      const preview = await new Promise<string>((resolve) => {
-        const reader = new FileReader();
-        reader.onload = (ev) => resolve(ev.target?.result as string);
-        reader.readAsDataURL(file);
-      });
-      setPendingFiles(prev => [...prev, { file, preview, gpsData, caption: '', status: 'pending' }]);
-    }
+  const handleInAppCapture = useCallback(async (file: File) => {
+    setShowCamera(false);
+    const preview = await new Promise<string>((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (ev) => resolve(ev.target?.result as string);
+      reader.readAsDataURL(file);
+    });
+    const gpsData = pendingCoords
+      ? { latitude: pendingCoords.latitude, longitude: pendingCoords.longitude, timestamp: new Date() }
+      : null;
+    setPendingFiles(prev => [...prev, { file, preview, gpsData, caption: '', status: 'pending' }]);
     if (gpsData) {
       toast.success('📍 現在地の位置情報を付与しました');
     }
-  }, []);
+    setPendingCoords(null);
+  }, [pendingCoords]);
+
 
   const removeFile = (index: number) => {
     setPendingFiles(prev => prev.filter((_, i) => i !== index));
@@ -258,7 +246,13 @@ const Upload = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
+      {/* In-app camera overlay */}
+      {showCamera && (
+        <InAppCamera
+          onCapture={handleInAppCapture}
+          onClose={() => { setShowCamera(false); setPendingCoords(null); }}
+        />
+      )}
       <header className="fixed top-0 left-0 right-0 z-50 glass-panel border-t-0 rounded-t-none">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <Button variant="ghost" size="icon" onClick={() => navigate('/feed')}>
@@ -301,14 +295,6 @@ const Upload = () => {
               </p>
             </div>
 
-            {/* Hidden camera input */}
-            <input
-              ref={cameraInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={handleCameraFileChange}
-            />
 
             <div className="flex gap-2">
               <Button
