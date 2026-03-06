@@ -65,6 +65,7 @@ async function weaveCallEnd(callId: string, outputs: Record<string, unknown>, er
           project_id: WEAVE_PROJECT_ID,
           id: callId,
           ended_at: new Date().toISOString(),
+          summary: {},
           outputs,
           ...(error ? { exception: error } : {}),
         },
