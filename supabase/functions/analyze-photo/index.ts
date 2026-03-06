@@ -35,7 +35,13 @@ async function weaveCallStart(opName: string, inputs: Record<string, unknown>, t
         },
       }),
     });
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error("Weave call/start HTTP error:", res.status, errText);
+      return { callId, traceId: traceId || callId };
+    }
     const data = await res.json();
+    console.log("Weave call/start success:", data);
     return { callId, traceId: data.trace_id || traceId || callId };
   } catch (e) {
     console.error("Weave call/start error:", e);
