@@ -7,7 +7,7 @@ const corsHeaders = {
 
 // --- Weave Tracing Helper ---
 const WEAVE_BASE_URL = "https://trace.wandb.ai";
-const WEAVE_PROJECT_ID = "journey-map-monitoring";
+const WEAVE_PROJECT_ID = "chattso-gpt/Journey Map Monitoring";
 
 async function weaveCallStart(opName: string, inputs: Record<string, unknown>, traceId?: string) {
   const WANDB_API_KEY = Deno.env.get("WANDB_API_KEY");
@@ -35,7 +35,13 @@ async function weaveCallStart(opName: string, inputs: Record<string, unknown>, t
         },
       }),
     });
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error("Weave call/start HTTP error:", res.status, errText);
+      return { callId, traceId: traceId || callId };
+    }
     const data = await res.json();
+    console.log("Weave call/start success:", data);
     return { callId, traceId: data.trace_id || traceId || callId };
   } catch (e) {
     console.error("Weave call/start error:", e);
@@ -48,7 +54,7 @@ async function weaveCallEnd(callId: string, outputs: Record<string, unknown>, er
   if (!WANDB_API_KEY || !callId) return;
 
   try {
-    await fetch(`${WEAVE_BASE_URL}/call/end`, {
+    const res = await fetch(`${WEAVE_BASE_URL}/call/end`, {
       method: "POST",
       headers: {
         Authorization: `Basic ${btoa(`api:${WANDB_API_KEY}`)}`,
@@ -64,6 +70,12 @@ async function weaveCallEnd(callId: string, outputs: Record<string, unknown>, er
         },
       }),
     });
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error("Weave call/end HTTP error:", res.status, errText);
+    } else {
+      console.log("Weave call/end success");
+    }
   } catch (e) {
     console.error("Weave call/end error:", e);
   }
