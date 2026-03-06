@@ -10,6 +10,7 @@ import NearbyNews from '@/components/NearbyNews';
 import LayerToggle from '@/components/LayerToggle';
 import EventTaskList from '@/components/EventTaskList';
 import EventCoverageKPI from '@/components/EventCoverageKPI';
+import EvaluationPanel from '@/components/EvaluationPanel';
 
 import AdminStatsPanel from '@/components/AdminStatsPanel';
 import ViewModeToggle from '@/components/ViewModeToggle';
@@ -318,6 +319,9 @@ const Index = () => {
                 >
                   {/* Event Coverage KPI */}
                   {events.length > 0 && <EventCoverageKPI events={events} />}
+
+                  {/* AI Evaluation */}
+                  {user && <EvaluationPanel />}
 
                   {/* Event Task List */}
                   <div className="glass-panel p-4">
