@@ -295,14 +295,6 @@ const Upload = () => {
               </p>
             </div>
 
-            {/* Hidden camera input */}
-            <input
-              ref={cameraInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={handleCameraFileChange}
-            />
 
             <div className="flex gap-2">
               <Button
