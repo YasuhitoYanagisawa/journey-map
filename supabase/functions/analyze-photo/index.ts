@@ -114,29 +114,11 @@ serve(async (req) => {
       );
     }
 
-    const { imageUrl } = await req.json();
+    const { imageUrl, imageBase64, imageMimeType } = await req.json();
 
-    if (!imageUrl) {
+    if (!imageUrl && !imageBase64) {
       return new Response(
-        JSON.stringify({ error: "imageUrl is required" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // --- SSRF protection: only allow known Supabase storage URLs ---
-    const SUPABASE_PROJECT_ID = "vjklymicopqhwyohegwq";
-    const allowedHosts = [`${SUPABASE_PROJECT_ID}.supabase.co`];
-    try {
-      const parsed = new URL(imageUrl);
-      if (parsed.protocol !== "https:" || !allowedHosts.includes(parsed.hostname)) {
-        return new Response(
-          JSON.stringify({ error: "Invalid image URL: only project storage URLs are allowed" }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-    } catch {
-      return new Response(
-        JSON.stringify({ error: "Invalid image URL format" }),
+        JSON.stringify({ error: "imageUrl or imageBase64 is required" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -146,21 +128,47 @@ serve(async (req) => {
       throw new Error("GOOGLE_GEMINI_API_KEY is not configured");
     }
 
-    // Start Weave trace
-    weaveCall = await weaveCallStart("analyze-photo", { imageUrl });
+    let base64Image: string;
+    let mimeType: string;
 
-    console.log("Analyzing photo:", imageUrl);
+    if (imageBase64) {
+      // Direct base64 input (from camera/preview)
+      base64Image = imageBase64;
+      mimeType = imageMimeType || "image/jpeg";
+      console.log("Analyzing photo from base64 data");
+    } else {
+      // URL input - SSRF protection: only allow known Supabase storage URLs
+      const SUPABASE_PROJECT_ID = "vjklymicopqhwyohegwq";
+      const allowedHosts = [`${SUPABASE_PROJECT_ID}.supabase.co`];
+      try {
+        const parsed = new URL(imageUrl);
+        if (parsed.protocol !== "https:" || !allowedHosts.includes(parsed.hostname)) {
+          return new Response(
+            JSON.stringify({ error: "Invalid image URL: only project storage URLs are allowed" }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+      } catch {
+        return new Response(
+          JSON.stringify({ error: "Invalid image URL format" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
 
-    // Fetch image and convert to base64
-    const imageResponse = await fetch(imageUrl);
-    if (!imageResponse.ok) {
-      throw new Error(`Failed to fetch image: ${imageResponse.status}`);
+      console.log("Analyzing photo:", imageUrl);
+      const imageResponse = await fetch(imageUrl);
+      if (!imageResponse.ok) {
+        throw new Error(`Failed to fetch image: ${imageResponse.status}`);
+      }
+      const imageBuffer = await imageResponse.arrayBuffer();
+      base64Image = btoa(
+        new Uint8Array(imageBuffer).reduce((data, byte) => data + String.fromCharCode(byte), "")
+      );
+      mimeType = imageResponse.headers.get("content-type") || "image/jpeg";
     }
-    const imageBuffer = await imageResponse.arrayBuffer();
-    const base64Image = btoa(
-      new Uint8Array(imageBuffer).reduce((data, byte) => data + String.fromCharCode(byte), "")
-    );
-    const mimeType = imageResponse.headers.get("content-type") || "image/jpeg";
+
+    // Start Weave trace
+    weaveCall = await weaveCallStart("analyze-photo", { imageUrl: imageUrl || "base64-upload" });
 
     // Call Gemini with Structured Output
     const geminiResponse = await fetch(

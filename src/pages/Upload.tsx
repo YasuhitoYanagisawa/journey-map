@@ -153,8 +153,14 @@ const Upload = () => {
     if (!pending) return;
 
     try {
+      // Extract base64 data from data URL
+      const base64Match = pending.preview.match(/^data:(image\/[^;]+);base64,(.+)$/);
+      const body = base64Match
+        ? { imageBase64: base64Match[2], imageMimeType: base64Match[1] }
+        : { imageUrl: pending.preview };
+
       const { data, error } = await supabase.functions.invoke('analyze-photo', {
-        body: { imageUrl: pending.preview },
+        body,
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
