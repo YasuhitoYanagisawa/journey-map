@@ -10,6 +10,7 @@ import NearbyNews from '@/components/NearbyNews';
 import LayerToggle from '@/components/LayerToggle';
 import EventTaskList from '@/components/EventTaskList';
 import EventCoverageKPI from '@/components/EventCoverageKPI';
+import EvaluationPanel from '@/components/EvaluationPanel';
 
 import AdminStatsPanel from '@/components/AdminStatsPanel';
 import ViewModeToggle from '@/components/ViewModeToggle';
