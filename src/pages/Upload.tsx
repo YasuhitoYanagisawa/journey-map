@@ -113,12 +113,34 @@ const Upload = () => {
     const gpsData = pendingCoords
       ? { latitude: pendingCoords.latitude, longitude: pendingCoords.longitude, timestamp: new Date() }
       : null;
+    const newIndex = pendingFiles.length;
     setPendingFiles(prev => [...prev, { file, preview, gpsData, caption: '', status: 'pending' }]);
     if (gpsData) {
       toast.success('📍 現在地の位置情報を付与しました');
     }
     setPendingCoords(null);
-  }, [pendingCoords]);
+
+    // Auto-run AI analysis
+    try {
+      toast.loading('AI分析中...', { id: 'auto-analyze' });
+      const match = preview.match(/^data:(image\/[^;]+);base64,(.+)$/);
+      if (match) {
+        const { data, error } = await supabase.functions.invoke('analyze-photo', {
+          body: { imageBase64: match[2], imageMimeType: match[1] },
+        });
+        if (!error && data?.analysis?.tags?.length > 0) {
+          const tagString = data.analysis.tags.map((t: string) => `#${t}`).join(' ');
+          const newCaption = data.analysis.description ? `${data.analysis.description}\n${tagString}` : tagString;
+          setPendingFiles(prev => prev.map((f, i) => i === newIndex ? { ...f, caption: newCaption } : f));
+          toast.success('AI分析完了！キャプションを自動生成しました', { id: 'auto-analyze' });
+        } else {
+          toast.dismiss('auto-analyze');
+        }
+      }
+    } catch {
+      toast.dismiss('auto-analyze');
+    }
+  }, [pendingCoords, pendingFiles.length]);
 
 
   const removeFile = (index: number) => {
