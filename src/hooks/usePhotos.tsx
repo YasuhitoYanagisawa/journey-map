@@ -117,10 +117,8 @@ export const usePhotos = () => {
       // Upload each photo to storage and save to DB
       const uploadedPhotos: PhotoLocation[] = [];
 
-      for (const photo of parsedPhotos) {
-        if (!photo.originalFile) continue;
-
-        const file = photo.originalFile;
+      for (const photo of photosToUpload) {
+        const file = photo.file;
         const fileExt = file.name.split('.').pop();
         const fileName = `${user.id}/${Date.now()}-${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
 
