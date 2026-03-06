@@ -54,7 +54,7 @@ async function weaveCallEnd(callId: string, outputs: Record<string, unknown>, er
   if (!WANDB_API_KEY || !callId) return;
 
   try {
-    await fetch(`${WEAVE_BASE_URL}/call/end`, {
+    const res = await fetch(`${WEAVE_BASE_URL}/call/end`, {
       method: "POST",
       headers: {
         Authorization: `Basic ${btoa(`api:${WANDB_API_KEY}`)}`,
@@ -70,6 +70,12 @@ async function weaveCallEnd(callId: string, outputs: Record<string, unknown>, er
         },
       }),
     });
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error("Weave call/end HTTP error:", res.status, errText);
+    } else {
+      console.log("Weave call/end success");
+    }
   } catch (e) {
     console.error("Weave call/end error:", e);
   }
