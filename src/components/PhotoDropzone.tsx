@@ -2,42 +2,34 @@ import { useCallback, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Upload, ImageIcon, Loader2, Camera } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { toast } from '@/components/ui/sonner';
 
 interface PhotoDropzoneProps {
   onFilesSelected: (files: File[]) => void;
+  onCameraCapture?: (file: File, coords: { latitude: number; longitude: number }) => void;
   isLoading?: boolean;
 }
 
-const PhotoDropzone = ({ onFilesSelected, isLoading = false }: PhotoDropzoneProps) => {
+const PhotoDropzone = ({ onFilesSelected, onCameraCapture, isLoading = false }: PhotoDropzoneProps) => {
   const [isDragging, setIsDragging] = useState(false);
-  const [processingCount, setProcessingCount] = useState(0);
+  const [gettingLocation, setGettingLocation] = useState(false);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const handleFiles = useCallback((files: File[]) => {
-    if (files.length === 0) return;
-    setProcessingCount(files.length);
-    onFilesSelected(files);
-    // Reset after a delay
-    setTimeout(() => setProcessingCount(0), 500);
-  }, [onFilesSelected]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
-
     const files = Array.from(e.dataTransfer.files).filter((file) =>
       file.type.startsWith('image/')
     );
-
-    handleFiles(files);
-  }, [handleFiles]);
+    if (files.length > 0) onFilesSelected(files);
+  }, [onFilesSelected]);
 
   const handleFileInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     e.target.value = '';
-    handleFiles(files);
-  }, [handleFiles]);
+    if (files.length > 0) onFilesSelected(files);
+  }, [onFilesSelected]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -49,11 +41,60 @@ const PhotoDropzone = ({ onFilesSelected, isLoading = false }: PhotoDropzoneProp
     setIsDragging(false);
   }, []);
 
-  const handleCameraClick = (e: React.MouseEvent) => {
+  const handleCameraClick = useCallback(async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    cameraInputRef.current?.click();
-  };
+
+    if (!onCameraCapture) {
+      // Fallback: just open camera without geolocation
+      cameraInputRef.current?.click();
+      return;
+    }
+
+    setGettingLocation(true);
+    try {
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0,
+        });
+      });
+      const { latitude, longitude } = position.coords;
+      cameraInputRef.current?.setAttribute('data-lat', latitude.toString());
+      cameraInputRef.current?.setAttribute('data-lng', longitude.toString());
+      cameraInputRef.current?.click();
+    } catch (error) {
+      console.error('Geolocation error:', error);
+      toast.error('位置情報を取得できませんでした', {
+        description: 'ブラウザの位置情報を許可してください',
+      });
+      cameraInputRef.current?.removeAttribute('data-lat');
+      cameraInputRef.current?.removeAttribute('data-lng');
+      cameraInputRef.current?.click();
+    } finally {
+      setGettingLocation(false);
+    }
+  }, [onCameraCapture]);
+
+  const handleCameraFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = '';
+    if (files.length === 0) return;
+
+    const lat = cameraInputRef.current?.getAttribute('data-lat');
+    const lng = cameraInputRef.current?.getAttribute('data-lng');
+
+    if (lat && lng && onCameraCapture) {
+      for (const file of files) {
+        onCameraCapture(file, { latitude: parseFloat(lat), longitude: parseFloat(lng) });
+      }
+      toast.success('📍 現在地の位置情報を付与しました');
+    } else {
+      // No GPS available, fall back to normal flow
+      onFilesSelected(files);
+    }
+  }, [onCameraCapture, onFilesSelected]);
 
   const handleFileClick = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -74,7 +115,7 @@ const PhotoDropzone = ({ onFilesSelected, isLoading = false }: PhotoDropzoneProp
         type="file"
         accept="image/*"
         capture="environment"
-        onChange={handleFileInput}
+        onChange={handleCameraFileChange}
         className="hidden"
       />
       <input
@@ -102,7 +143,7 @@ const PhotoDropzone = ({ onFilesSelected, isLoading = false }: PhotoDropzoneProp
         `}
       >
         <AnimatePresence mode="wait">
-          {isLoading ? (
+          {isLoading || gettingLocation ? (
             <motion.div
               key="loading"
               initial={{ opacity: 0, scale: 0.9 }}
@@ -112,7 +153,7 @@ const PhotoDropzone = ({ onFilesSelected, isLoading = false }: PhotoDropzoneProp
             >
               <Loader2 className="w-12 h-12 text-primary animate-spin" />
               <p className="text-muted-foreground">
-                写真を処理中...
+                {gettingLocation ? '📍 位置情報を取得中...' : '写真を処理中...'}
               </p>
             </motion.div>
           ) : (
@@ -151,6 +192,7 @@ const PhotoDropzone = ({ onFilesSelected, isLoading = false }: PhotoDropzoneProp
                   variant="default"
                   size="sm"
                   onClick={handleCameraClick}
+                  disabled={gettingLocation}
                   className="gap-2"
                 >
                   <Camera className="w-4 h-4" />
@@ -169,7 +211,7 @@ const PhotoDropzone = ({ onFilesSelected, isLoading = false }: PhotoDropzoneProp
               </div>
 
               <p className="text-xs text-muted-foreground/70 mt-2">
-                GPS情報を含むJPEG画像に対応
+                📍 カメラ撮影時はブラウザの位置情報を自動付与
               </p>
             </motion.div>
           )}
