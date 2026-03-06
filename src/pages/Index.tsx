@@ -84,6 +84,24 @@ const Index = () => {
     }
   };
 
+  // Camera capture with browser geolocation (bypasses EXIF requirement)
+  const handleCameraCapture = async (file: File, coords: { latitude: number; longitude: number }) => {
+    if (user) {
+      await uploadPhotos([file], coords);
+    } else {
+      const id = `local-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
+      addLocalPhotos([{
+        id,
+        filename: file.name,
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+        timestamp: new Date(),
+        thumbnailUrl: URL.createObjectURL(file),
+        originalFile: file,
+      }]);
+    }
+  };
+
   const handleAutoMatch = useCallback(async () => {
     if (photos.length === 0) {
       toast.error('写真がありません', { description: '先に写真をアップロードしてください' });
@@ -224,6 +242,7 @@ const Index = () => {
 
               <PhotoDropzone 
                 onFilesSelected={handlePhotosLoaded}
+                onCameraCapture={handleCameraCapture}
                 isLoading={isLoading}
               />
 
