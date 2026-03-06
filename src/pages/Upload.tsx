@@ -246,7 +246,13 @@ const Upload = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
+      {/* In-app camera overlay */}
+      {showCamera && (
+        <InAppCamera
+          onCapture={handleInAppCapture}
+          onClose={() => { setShowCamera(false); setPendingCoords(null); }}
+        />
+      )}
       <header className="fixed top-0 left-0 right-0 z-50 glass-panel border-t-0 rounded-t-none">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <Button variant="ghost" size="icon" onClick={() => navigate('/feed')}>
