@@ -125,7 +125,6 @@ const PhotoDropzone = ({ onFilesSelected, onCameraCapture, isLoading = false }: 
         ref={cameraInputRef}
         type="file"
         accept="image/*"
-        capture="environment"
         onChange={handleCameraFileChange}
         className="hidden"
       />
