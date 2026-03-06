@@ -60,20 +60,19 @@ const PhotoDropzone = ({ onFilesSelected, onCameraCapture, isLoading = false }: 
         });
       });
       const { latitude, longitude } = position.coords;
-      // Persist to sessionStorage to survive page unload on mobile
       sessionStorage.setItem('camera_gps', JSON.stringify({ latitude, longitude, timestamp: Date.now() }));
       console.log('[PhotoDropzone] GPS acquired:', latitude, longitude);
-      cameraInputRef.current?.click();
     } catch (error) {
       console.error('[PhotoDropzone] Geolocation error:', error);
       toast.error('位置情報を取得できませんでした', {
         description: 'ブラウザの位置情報を許可してください',
       });
       sessionStorage.removeItem('camera_gps');
-      cameraInputRef.current?.click();
     } finally {
       setGettingLocation(false);
     }
+    // Open file picker (no capture attr = uses system picker, avoids page eviction)
+    cameraInputRef.current?.click();
   }, [onCameraCapture]);
 
   const handleCameraFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
