@@ -64,7 +64,7 @@ export const usePhotos = () => {
   }, [user]);
 
   // Upload files and save to Supabase
-  const uploadPhotos = useCallback(async (files: File[]): Promise<PhotoLocation[]> => {
+  const uploadPhotos = useCallback(async (files: File[], gpsOverride?: { latitude: number; longitude: number }): Promise<PhotoLocation[]> => {
     if (!user) {
       toast.error('ログインが必要です');
       return [];
