@@ -121,25 +121,40 @@ const Upload = () => {
     setPendingCoords(null);
 
     // Auto-run AI analysis
-    try {
-      toast.loading('AI分析中...', { id: 'auto-analyze' });
-      const match = preview.match(/^data:(image\/[^;]+);base64,(.+)$/);
-      if (match) {
+    setTimeout(async () => {
+      try {
+        toast.loading('AI分析中...', { id: 'auto-analyze' });
+        console.log('[Auto-Analyze] Starting AI analysis for captured photo');
+        const match = preview.match(/^data:(image\/[^;]+);base64,(.+)$/);
+        if (!match) {
+          console.error('[Auto-Analyze] Failed to parse preview data URL');
+          toast.dismiss('auto-analyze');
+          return;
+        }
+        console.log('[Auto-Analyze] Invoking analyze-photo edge function');
         const { data, error } = await supabase.functions.invoke('analyze-photo', {
           body: { imageBase64: match[2], imageMimeType: match[1] },
         });
-        if (!error && data?.analysis?.tags?.length > 0) {
+        console.log('[Auto-Analyze] Response:', { data, error });
+        if (error) {
+          console.error('[Auto-Analyze] Edge function error:', error);
+          toast.error('AI分析に失敗しました', { id: 'auto-analyze' });
+          return;
+        }
+        if (data?.analysis?.tags?.length > 0) {
           const tagString = data.analysis.tags.map((t: string) => `#${t}`).join(' ');
           const newCaption = data.analysis.description ? `${data.analysis.description}\n${tagString}` : tagString;
           setPendingFiles(prev => prev.map((f, i) => i === newIndex ? { ...f, caption: newCaption } : f));
           toast.success('AI分析完了！キャプションを自動生成しました', { id: 'auto-analyze' });
         } else {
+          console.log('[Auto-Analyze] No tags returned');
           toast.dismiss('auto-analyze');
         }
+      } catch (err) {
+        console.error('[Auto-Analyze] Uncaught error:', err);
+        toast.error('AI分析に失敗しました', { id: 'auto-analyze' });
       }
-    } catch {
-      toast.dismiss('auto-analyze');
-    }
+    }, 500);
   }, [pendingCoords, pendingFiles.length]);
 
 
