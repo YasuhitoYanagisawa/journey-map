@@ -7,7 +7,7 @@ const corsHeaders = {
 
 // --- Weave Tracing Helper ---
 const WEAVE_BASE_URL = "https://trace.wandb.ai";
-const WEAVE_PROJECT_ID = "journey-map-monitoring";
+const WEAVE_PROJECT_ID = "chattso-gpt/Journey Map Monitoring";
 
 async function weaveCallStart(opName: string, inputs: Record<string, unknown>, traceId?: string) {
   const WANDB_API_KEY = Deno.env.get("WANDB_API_KEY");
@@ -32,7 +32,13 @@ async function weaveCallStart(opName: string, inputs: Record<string, unknown>, t
         },
       }),
     });
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error("Weave call/start HTTP error:", res.status, errText);
+      return { callId, traceId: traceId || callId };
+    }
     const data = await res.json();
+    console.log("Weave call/start success:", data);
     return { callId, traceId: data.trace_id || traceId || callId };
   } catch (e) {
     console.error("Weave call/start error:", e);
@@ -44,7 +50,7 @@ async function weaveCallEnd(callId: string, outputs: Record<string, unknown>, er
   const WANDB_API_KEY = Deno.env.get("WANDB_API_KEY");
   if (!WANDB_API_KEY || !callId) return;
   try {
-    await fetch(`${WEAVE_BASE_URL}/call/end`, {
+    const res = await fetch(`${WEAVE_BASE_URL}/call/end`, {
       method: "POST",
       headers: {
         Authorization: `Basic ${btoa(`api:${WANDB_API_KEY}`)}`,
@@ -60,6 +66,12 @@ async function weaveCallEnd(callId: string, outputs: Record<string, unknown>, er
         },
       }),
     });
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error("Weave call/end HTTP error:", res.status, errText);
+    } else {
+      console.log("Weave call/end success");
+    }
   } catch (e) {
     console.error("Weave call/end error:", e);
   }
@@ -94,11 +106,25 @@ serve(async (req) => {
 
     console.log("Searching news with query:", query);
 
-    const systemInstruction = "あなたは日本のニュース検索アシスタントです。指定された日付と場所に関連するニュースや出来事を検索し、5件まで返してください。ニュースが見つからない場合は空の配列を返してください。";
+    const systemInstruction = "あなたは日本のニュース検索アシスタントです。Google検索を使って、指定された日付と場所に関連するニュースや出来事を検索してください。検索結果に基づいて、実際のニュース記事を5件まで返してください。ニュースが見つからない場合は空の配列を返してください。必ず有効なJSONのみを返してください。";
 
-    const prompt = `${dateStr}に${location}で起きたニュースや出来事を教えてください。`;
+    const prompt = `${dateStr}に${location}で起きたニュースや出来事をGoogle検索で調べて教えてください。
 
-    // Use Gemini with Structured Output
+以下のJSON形式で返してください:
+{
+  "news": [
+    {
+      "title": "ニュースのタイトル",
+      "summary": "50文字以内の要約",
+      "url": "ソースURL",
+      "source": "ソース名"
+    }
+  ]
+}`;
+
+    // Use Gemini with Google Search grounding for real-time news
+    // Note: Structured Output (responseMimeType) cannot be used with grounding tools,
+    // so we use grounding + manual JSON parsing
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GOOGLE_GEMINI_API_KEY}`,
       {
@@ -107,28 +133,7 @@ serve(async (req) => {
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: systemInstruction }] },
           contents: [{ role: "user", parts: [{ text: prompt }] }],
-          generationConfig: {
-            responseMimeType: "application/json",
-            responseSchema: {
-              type: "OBJECT",
-              properties: {
-                news: {
-                  type: "ARRAY",
-                  items: {
-                    type: "OBJECT",
-                    properties: {
-                      title: { type: "STRING", description: "ニュースのタイトル" },
-                      summary: { type: "STRING", description: "50文字以内の要約" },
-                      url: { type: "STRING", description: "ソースURL（不明な場合は空文字）" },
-                      source: { type: "STRING", description: "ソース名" },
-                    },
-                    required: ["title", "summary", "source"],
-                  },
-                },
-              },
-              required: ["news"],
-            },
-          },
+          tools: [{ google_search: {} }],
         }),
       }
     );
@@ -148,24 +153,66 @@ serve(async (req) => {
     }
 
     const data = await response.json();
-    const content = data.candidates?.[0]?.content?.parts?.[0]?.text || '{"news":[]}';
+    const content = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    const groundingMetadata = data.candidates?.[0]?.groundingMetadata;
 
-    console.log("Gemini structured response:", content);
+    console.log("Gemini grounded response:", content);
+    if (groundingMetadata) {
+      console.log("Grounding sources:", JSON.stringify(groundingMetadata.groundingChunks?.length || 0));
+    }
 
-    let newsData: { news: Array<{ title: string; summary: string; url: string; source: string }> } = { news: [] };
+    // Parse JSON from response (with grounding, need manual parsing)
+    interface NewsItem {
+      title: string;
+      summary: string;
+      url: string;
+      source: string;
+    }
+
+    let newsData: { news: NewsItem[] } = { news: [] };
     let parseSuccess = true;
     try {
-      newsData = JSON.parse(content);
+      // Strip markdown code blocks
+      let cleaned = content.replace(/```(?:json)?\s*/g, "").replace(/```\s*/g, "").trim();
+      const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        newsData = JSON.parse(jsonMatch[0]);
+      }
     } catch (parseError) {
       console.error("Failed to parse news JSON:", parseError);
       parseSuccess = false;
+      // Fallback: try to extract from grounding metadata
+      if (groundingMetadata?.groundingChunks) {
+        newsData = {
+          news: groundingMetadata.groundingChunks.slice(0, 5).map((chunk: any, idx: number) => ({
+            title: chunk.web?.title || `関連記事 ${idx + 1}`,
+            summary: "",
+            url: chunk.web?.uri || "",
+            source: chunk.web?.title ? new URL(chunk.web.uri).hostname : "不明",
+          })),
+        };
+      }
+    }
+
+    // Enrich with grounding URLs if available
+    if (groundingMetadata?.groundingChunks && newsData.news.length > 0) {
+      newsData.news = newsData.news.map((item: NewsItem, idx: number) => {
+        const chunk = groundingMetadata.groundingChunks[idx];
+        return {
+          ...item,
+          url: item.url || chunk?.web?.uri || "",
+          source: item.source || (chunk?.web?.uri ? new URL(chunk.web.uri).hostname : "不明"),
+        };
+      });
     }
 
     // End Weave trace
     await weaveCallEnd(weaveCall?.callId || "", {
       news_count: newsData.news.length,
       parse_success: parseSuccess,
-      news_titles: newsData.news.map((n) => n.title),
+      has_grounding: !!groundingMetadata,
+      grounding_chunks: groundingMetadata?.groundingChunks?.length || 0,
+      news_titles: newsData.news.map((n: NewsItem) => n.title),
     });
 
     return new Response(JSON.stringify(newsData), {
