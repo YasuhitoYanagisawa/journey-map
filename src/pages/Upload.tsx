@@ -288,21 +288,52 @@ const Upload = () => {
               </p>
             </div>
 
-            <label className="flex items-center justify-center gap-2 w-full px-3 py-2 text-sm border border-border rounded-lg cursor-pointer hover:bg-muted transition-colors">
-              <Image className="w-4 h-4" />
-              ファイルを選択（複数可）
-              <input
-                type="file"
-                accept="image/*"
-                multiple
-                className="hidden"
-                onChange={(e) => {
-                  const files = Array.from(e.target.files || []);
-                  if (files.length > 0) processFiles(files);
-                  e.target.value = '';
-                }}
-              />
-            </label>
+            {/* Hidden camera input */}
+            <input
+              ref={cameraInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={handleCameraFileChange}
+            />
+
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="default"
+                className="flex-1 gap-2"
+                onClick={handleCameraCapture}
+                disabled={gettingLocation}
+              >
+                {gettingLocation ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Camera className="w-4 h-4" />
+                )}
+                {gettingLocation ? '位置情報取得中...' : 'カメラで撮影'}
+              </Button>
+
+              <label className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm border border-border rounded-lg cursor-pointer hover:bg-muted transition-colors">
+                <Image className="w-4 h-4" />
+                ファイルを選択
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => {
+                    const files = Array.from(e.target.files || []);
+                    if (files.length > 0) processFiles(files);
+                    e.target.value = '';
+                  }}
+                />
+              </label>
+            </div>
+
+            <p className="text-xs text-muted-foreground text-center">
+              📍 カメラ撮影時はブラウザの位置情報を自動付与します
+            </p>
           </div>
         )}
 
