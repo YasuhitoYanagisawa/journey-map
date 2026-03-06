@@ -88,16 +88,14 @@ const Upload = () => {
         });
       });
       const { latitude, longitude } = position.coords;
-      cameraInputRef.current?.setAttribute('data-lat', latitude.toString());
-      cameraInputRef.current?.setAttribute('data-lng', longitude.toString());
+      sessionStorage.setItem('camera_gps', JSON.stringify({ latitude, longitude, timestamp: Date.now() }));
       cameraInputRef.current?.click();
     } catch (error) {
       console.error('Geolocation error:', error);
       toast.error('位置情報を取得できませんでした', {
         description: 'ブラウザの位置情報を許可してください',
       });
-      cameraInputRef.current?.removeAttribute('data-lat');
-      cameraInputRef.current?.removeAttribute('data-lng');
+      sessionStorage.removeItem('camera_gps');
       cameraInputRef.current?.click();
     } finally {
       setGettingLocation(false);
@@ -108,20 +106,29 @@ const Upload = () => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
     e.target.value = '';
-    const lat = cameraInputRef.current?.getAttribute('data-lat');
-    const lng = cameraInputRef.current?.getAttribute('data-lng');
+
+    const stored = sessionStorage.getItem('camera_gps');
+    sessionStorage.removeItem('camera_gps');
+    let gpsData: PendingFile['gpsData'] = null;
+
+    if (stored) {
+      try {
+        const gps = JSON.parse(stored);
+        if (Date.now() - gps.timestamp < 5 * 60 * 1000) {
+          gpsData = { latitude: gps.latitude, longitude: gps.longitude, timestamp: new Date() };
+        }
+      } catch {}
+    }
+
     for (const file of files) {
       const preview = await new Promise<string>((resolve) => {
         const reader = new FileReader();
         reader.onload = (ev) => resolve(ev.target?.result as string);
         reader.readAsDataURL(file);
       });
-      const gpsData = lat && lng
-        ? { latitude: parseFloat(lat), longitude: parseFloat(lng), timestamp: new Date() }
-        : null;
       setPendingFiles(prev => [...prev, { file, preview, gpsData, caption: '', status: 'pending' }]);
     }
-    if (lat && lng) {
+    if (gpsData) {
       toast.success('📍 現在地の位置情報を付与しました');
     }
   }, []);
