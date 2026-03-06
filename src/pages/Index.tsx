@@ -242,6 +242,7 @@ const Index = () => {
 
               <PhotoDropzone 
                 onFilesSelected={handlePhotosLoaded}
+                onCameraCapture={handleCameraCapture}
                 isLoading={isLoading}
               />
 
