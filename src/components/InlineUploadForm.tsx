@@ -91,8 +91,14 @@ const InlineUploadForm = ({ userId, onUploaded }: InlineUploadFormProps) => {
     if (!pending) return;
 
     try {
+      // Extract base64 data and mime type from the data URL
+      const match = pending.preview.match(/^data:(image\/[^;]+);base64,(.+)$/);
+      if (!match) throw new Error('Invalid preview data');
+      const imageMimeType = match[1];
+      const imageBase64 = match[2];
+
       const { data, error } = await supabase.functions.invoke('analyze-photo', {
-        body: { imageUrl: pending.preview },
+        body: { imageBase64, imageMimeType },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
@@ -106,7 +112,8 @@ const InlineUploadForm = ({ userId, onUploaded }: InlineUploadFormProps) => {
       } else {
         toast.info('タグを生成できませんでした');
       }
-    } catch {
+    } catch (e) {
+      console.error('AI analysis error:', e);
       toast.error('AI分析に失敗しました');
     }
   };
