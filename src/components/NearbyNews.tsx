@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Newspaper, ExternalLink, Loader2, AlertCircle, Navigation, CalendarDays, MapPin, Calendar, Plus, Check } from 'lucide-react';
+import { Newspaper, ExternalLink, Loader2, AlertCircle, Navigation, CalendarDays, MapPin, Calendar, Plus, Check, Search } from 'lucide-react';
 import { PhotoLocation } from '@/types/photo';
 import { EventSearchResult } from '@/types/event';
 import { Button } from '@/components/ui/button';
@@ -488,6 +488,16 @@ const NearbyNews = ({ photos, onAddEvents, isLoggedIn }: NearbyNewsProps) => {
                     {event.description && (
                       <p className="text-xs text-muted-foreground mt-1 line-clamp-1">{event.description}</p>
                     )}
+                    <a
+                      href={`https://www.google.com/search?q=${encodeURIComponent(event.name + ' ' + (event.location_name || ''))}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="inline-flex items-center gap-1 text-xs text-primary/70 hover:text-primary mt-1.5 transition-colors"
+                    >
+                      <Search className="w-3 h-3" />
+                      詳細を検索
+                    </a>
                   </div>
                 </div>
               </motion.button>
