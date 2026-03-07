@@ -90,11 +90,36 @@ serve(async (req) => {
   let weaveCall: { callId: string; traceId: string } | null = null;
 
   try {
+    // --- Auth check ---
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2");
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      { global: { headers: { Authorization: authHeader } } }
+    );
+    const token = authHeader.replace("Bearer ", "");
+    const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token);
+    if (claimsError || !claimsData?.claims) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const { prefecture, city, period } = await req.json();
     const GOOGLE_GEMINI_API_KEY = Deno.env.get("GOOGLE_GEMINI_API_KEY");
 
     if (!GOOGLE_GEMINI_API_KEY) {
-      throw new Error("GOOGLE_GEMINI_API_KEY is not configured");
+      console.error("GOOGLE_GEMINI_API_KEY is not configured");
+      throw new Error("Server configuration error");
     }
 
     const locationQuery = [prefecture, city].filter(Boolean).join(" ");
@@ -234,7 +259,7 @@ serve(async (req) => {
     const errMsg = error instanceof Error ? error.message : "Unknown error";
     await weaveCallEnd(weaveCall?.callId || "", { parse_success: false }, errMsg);
     return new Response(
-      JSON.stringify({ error: errMsg }),
+      JSON.stringify({ error: "イベント検索中にエラーが発生しました。しばらく待ってから再試行してください。" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

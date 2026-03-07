@@ -125,7 +125,8 @@ serve(async (req) => {
 
     const GOOGLE_GEMINI_API_KEY = Deno.env.get("GOOGLE_GEMINI_API_KEY");
     if (!GOOGLE_GEMINI_API_KEY) {
-      throw new Error("GOOGLE_GEMINI_API_KEY is not configured");
+      console.error("GOOGLE_GEMINI_API_KEY is not configured");
+      throw new Error("Server configuration error");
     }
 
     let base64Image: string;
@@ -274,7 +275,7 @@ serve(async (req) => {
     const errMsg = error instanceof Error ? error.message : "Unknown error";
     await weaveCallEnd(weaveCall?.callId || "", { parse_success: false }, errMsg);
     return new Response(
-      JSON.stringify({ error: errMsg }),
+      JSON.stringify({ error: "写真の分析中にエラーが発生しました。しばらく待ってから再試行してください。" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
