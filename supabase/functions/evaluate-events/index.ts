@@ -61,6 +61,7 @@ serve(async (req) => {
         },
         limit: 100,
         sort_by: [{ field: "started_at", direction: "desc" }],
+        columns: ["id", "inputs", "output", "started_at"],
       }),
     });
 
