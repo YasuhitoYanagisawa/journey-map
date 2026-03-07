@@ -249,7 +249,7 @@ serve(async (req) => {
     const errMsg = error instanceof Error ? error.message : "Unknown error";
     await weaveCallEnd(weaveCall?.callId || "", { parse_success: false }, errMsg);
     return new Response(
-      JSON.stringify({ error: errMsg }),
+      JSON.stringify({ error: "ニュース検索中にエラーが発生しました。しばらく待ってから再試行してください。" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
