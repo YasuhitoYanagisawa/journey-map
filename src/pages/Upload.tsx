@@ -312,27 +312,7 @@ const Upload = () => {
         {/* Dropzone & File selector */}
         {!uploading && (
           <div className="space-y-2">
-            <div
-              {...getRootProps()}
-              className={`glass-panel p-8 text-center cursor-pointer transition-colors
-                ${isDragActive ? 'border-primary/50 bg-primary/5' : 'hover:border-primary/30'}`}
-            >
-              <input {...getInputProps()} />
-              <div className="inline-flex p-4 bg-primary/10 rounded-2xl mb-4">
-                <Image className="w-12 h-12 text-primary" />
-              </div>
-              <h2 className="text-lg font-semibold mb-2">
-                {isDragActive ? 'ドロップしてアップロード' : pendingFiles.length > 0 ? '写真を追加' : '写真を選択'}
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                ドラッグ＆ドロップまたはクリックして選択
-              </p>
-              <p className="text-xs text-muted-foreground mt-2">
-                ※ 複数選択可。GPS情報が含まれている写真は位置が表示されます
-              </p>
-            </div>
-
-
+            {/* Action buttons - always visible at top */}
             <div className="flex gap-2">
               <Button
                 type="button"
@@ -367,8 +347,25 @@ const Upload = () => {
             </div>
 
             <p className="text-xs text-muted-foreground text-center">
-              📍 カメラ撮影時はブラウザの位置情報を自動付与します
+              📍 カメラ撮影時はブラウザの位置情報を自動付与
             </p>
+
+            <div
+              {...getRootProps()}
+              className={`glass-panel p-6 text-center cursor-pointer transition-colors
+                ${isDragActive ? 'border-primary/50 bg-primary/5' : 'hover:border-primary/30'}`}
+            >
+              <input {...getInputProps()} />
+              <div className="inline-flex p-3 bg-primary/10 rounded-2xl mb-3">
+                <Image className="w-8 h-8 text-primary" />
+              </div>
+              <p className="text-sm text-muted-foreground">
+                {isDragActive ? 'ドロップしてアップロード' : 'ドラッグ＆ドロップでも追加できます'}
+              </p>
+              <p className="text-xs text-muted-foreground/70 mt-1">
+                ※ GPS情報付き写真は位置が自動表示されます
+              </p>
+            </div>
           </div>
         )}
 
