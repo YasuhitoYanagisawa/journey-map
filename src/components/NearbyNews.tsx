@@ -1,7 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Newspaper, ExternalLink, Loader2, AlertCircle, Navigation, CalendarDays, MapPin, Calendar, Plus, Check, Search } from 'lucide-react';
-import { Newspaper, ExternalLink, Loader2, AlertCircle, Navigation, CalendarDays, MapPin, Calendar, Plus, Check } from 'lucide-react';
 import { PhotoLocation } from '@/types/photo';
 import { EventSearchResult } from '@/types/event';
 import { Button } from '@/components/ui/button';
