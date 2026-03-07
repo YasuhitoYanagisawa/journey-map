@@ -83,6 +83,13 @@ serve(async (req) => {
         // skip malformed lines
       }
     }
+    
+    // Debug: log first trace's full keys to understand structure
+    if (traces.length > 0) {
+      const firstTrace = traces[0];
+      console.log("First trace keys:", JSON.stringify(Object.keys(firstTrace)));
+      console.log("First trace sample:", JSON.stringify(firstTrace).substring(0, 500));
+    }
 
     console.log(`Fetched ${traces.length} search-events traces`);
 
