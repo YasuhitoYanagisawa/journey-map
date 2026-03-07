@@ -89,6 +89,13 @@ serve(async (req) => {
       const firstTrace = traces[0];
       console.log("First trace keys:", JSON.stringify(Object.keys(firstTrace)));
       console.log("First trace sample:", JSON.stringify(firstTrace).substring(0, 500));
+      
+      // Log traces with non-null output
+      const withOutput = traces.filter(t => t.output !== null && t.output !== undefined);
+      console.log(`Traces with output: ${withOutput.length} / ${traces.length}`);
+      if (withOutput.length > 0) {
+        console.log("First trace with output:", JSON.stringify(withOutput[0]).substring(0, 500));
+      }
     }
 
     console.log(`Fetched ${traces.length} search-events traces`);
