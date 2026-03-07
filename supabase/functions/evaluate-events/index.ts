@@ -88,10 +88,14 @@ serve(async (req) => {
     // Step 2: Extract all suggested events from traces
     const suggestedEvents: { name: string; prefecture: string; city: string; traceId: string; timestamp: string }[] = [];
     for (const trace of traces) {
+      // Weave stores outputs at various paths depending on version
       const outputs = trace.output || trace.outputs || {};
-      const summary = outputs.events_summary || [];
-      const inputs = trace.inputs || {};
-      for (const event of summary) {
+      const summary = outputs.events_summary || outputs.result?.events_summary || [];
+      const inputs = trace.inputs || trace.input || {};
+      
+      console.log(`Trace ${trace.id}: output keys = ${JSON.stringify(Object.keys(outputs))}, summary length = ${Array.isArray(summary) ? summary.length : 'not array'}`);
+      
+      for (const event of (Array.isArray(summary) ? summary : [])) {
         suggestedEvents.push({
           name: event.name,
           prefecture: inputs.prefecture || "",
