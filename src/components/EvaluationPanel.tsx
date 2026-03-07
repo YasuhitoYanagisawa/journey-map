@@ -72,9 +72,16 @@ const EvaluationPanel = () => {
       </div>
 
       {!result && !isLoading && (
-        <p className="text-xs text-muted-foreground">
-          Weaveトレースとイベント採用データを比較し、AI検索の精度を測定します
-        </p>
+        <div className="text-xs text-muted-foreground space-y-2 p-3 rounded-lg bg-secondary/10">
+          <p className="font-medium text-foreground/80">AIイベント検索の精度を自動評価します</p>
+          <ul className="space-y-1 list-none">
+            <li>📡 <strong>データ収集:</strong> W&B Weaveに記録されたAI検索の履歴（提案イベント一覧）を取得</li>
+            <li>🔍 <strong>照合:</strong> AIが提案したイベントのうち、実際にユーザーが採用（保存）したものを特定</li>
+            <li>👣 <strong>行動検証:</strong> 採用したイベントのうち、実際に訪問したかを写真GPSデータで確認</li>
+            <li>📊 <strong>指標算出:</strong> 適合率・訪問率・AI活用率から総合品質スコアを算出</li>
+          </ul>
+          <p className="text-muted-foreground/70 italic">※ ユーザーの実行動を「正解データ」としてAIの有用性を定量評価するフィードバックループです</p>
+        </div>
       )}
 
       {result && (
