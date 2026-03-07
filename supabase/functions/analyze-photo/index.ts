@@ -125,7 +125,8 @@ serve(async (req) => {
 
     const GOOGLE_GEMINI_API_KEY = Deno.env.get("GOOGLE_GEMINI_API_KEY");
     if (!GOOGLE_GEMINI_API_KEY) {
-      throw new Error("GOOGLE_GEMINI_API_KEY is not configured");
+      console.error("GOOGLE_GEMINI_API_KEY is not configured");
+      throw new Error("Server configuration error");
     }
 
     let base64Image: string;
