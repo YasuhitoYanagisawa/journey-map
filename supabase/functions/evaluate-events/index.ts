@@ -61,6 +61,7 @@ serve(async (req) => {
         },
         limit: 100,
         sort_by: [{ field: "started_at", direction: "desc" }],
+        columns: ["id", "inputs", "output", "started_at"],
       }),
     });
 
@@ -82,16 +83,34 @@ serve(async (req) => {
         // skip malformed lines
       }
     }
+    
+    // Debug: log first trace's full keys to understand structure
+    if (traces.length > 0) {
+      const firstTrace = traces[0];
+      console.log("First trace keys:", JSON.stringify(Object.keys(firstTrace)));
+      console.log("First trace sample:", JSON.stringify(firstTrace).substring(0, 500));
+      
+      // Log traces with non-null output
+      const withOutput = traces.filter(t => t.output !== null && t.output !== undefined);
+      console.log(`Traces with output: ${withOutput.length} / ${traces.length}`);
+      if (withOutput.length > 0) {
+        console.log("First trace with output:", JSON.stringify(withOutput[0]).substring(0, 500));
+      }
+    }
 
     console.log(`Fetched ${traces.length} search-events traces`);
 
     // Step 2: Extract all suggested events from traces
     const suggestedEvents: { name: string; prefecture: string; city: string; traceId: string; timestamp: string }[] = [];
     for (const trace of traces) {
+      // Weave stores outputs at various paths depending on version
       const outputs = trace.output || trace.outputs || {};
-      const summary = outputs.events_summary || [];
-      const inputs = trace.inputs || {};
-      for (const event of summary) {
+      const summary = outputs.events_summary || outputs.result?.events_summary || [];
+      const inputs = trace.inputs || trace.input || {};
+      
+      console.log(`Trace ${trace.id}: output keys = ${JSON.stringify(Object.keys(outputs))}, summary length = ${Array.isArray(summary) ? summary.length : 'not array'}`);
+      
+      for (const event of (Array.isArray(summary) ? summary : [])) {
         suggestedEvents.push({
           name: event.name,
           prefecture: inputs.prefecture || "",
