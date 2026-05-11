@@ -11,6 +11,8 @@ import EngineBadge from "@/components/omamori/EngineBadge";
 import BottomNav from "@/components/omamori/BottomNav";
 import { findNearby, fullTextFilter, getMonthFromDate, formatDistance } from "@/lib/omamoriSearch";
 import { runAI } from "@/lib/aiRouter";
+import { useTranslator, getCached } from "@/lib/useTranslate";
+import { Languages } from "lucide-react";
 import type { Festival } from "@/lib/omamoriDB";
 
 const PREFS = [
