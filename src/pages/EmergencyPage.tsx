@@ -241,16 +241,19 @@ function ShelterDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (b
               {c.l}
             </button>
           ))}
-          <Button
-            size="sm"
-            variant="outline"
-            className="ml-auto h-7 text-xs"
-            onClick={handleTranslate}
-            disabled={trLoading || list.length === 0}
-          >
-            {trLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Languages className="h-3 w-3" />}
-            {showEN ? "EN" : "Translate"}
-          </Button>
+          <div className="ml-auto flex items-center gap-2">
+            <LangPicker />
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs"
+              onClick={handleTranslate}
+              disabled={trLoading || list.length === 0}
+            >
+              {trLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Languages className="h-3 w-3" />}
+              Translate
+            </Button>
+          </div>
         </div>
         <div className="overflow-auto -mx-2 px-2 space-y-2">
           {error && <div className="text-sm text-destructive">{error}</div>}
