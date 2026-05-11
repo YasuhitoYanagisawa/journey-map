@@ -299,16 +299,8 @@ function ShelterCard({ s }: { s: Shelter & { _distance: number } }) {
 
 function HospitalDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (b: boolean) => void }) {
   const { coords, error } = useGeo();
-  const [data, setData] = useState<Hosp[] | null>(null);
+  const { data, loadErr, retry } = useDataset<Hosp>("hospitals", open);
   const [emOnly, setEmOnly] = useState(false);
-
-  useEffect(() => {
-    if (!open) return;
-    (getDataset<Hosp>("hospitals") || Promise.resolve(null)).then((d) => {
-      if (d) setData(d);
-      else loadDataset<Hosp>("hospitals").then(setData).catch(() => {});
-    });
-  }, [open]);
 
   const list = useMemo(() => {
     if (!data || !coords) return [];
@@ -340,12 +332,19 @@ function HospitalDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (
         </div>
         <div className="overflow-auto -mx-2 px-2 space-y-2">
           {error && <div className="text-sm text-destructive">{error}</div>}
+          {loadErr && (
+            <div className="text-sm py-4 text-center">
+              <div className="text-destructive mb-2">Failed to load hospital data.</div>
+              <div className="text-xs text-muted-foreground mb-2 break-words">{loadErr}</div>
+              <Button size="sm" variant="outline" onClick={retry}>Retry</Button>
+            </div>
+          )}
           {!coords && !error && (
             <div className="flex items-center gap-2 text-sm text-muted-foreground py-6 justify-center">
               <Loader2 className="h-4 w-4 animate-spin" /> Getting location…
             </div>
           )}
-          {coords && !data && (
+          {coords && !data && !loadErr && (
             <div className="flex items-center gap-2 text-sm text-muted-foreground py-6 justify-center">
               <Loader2 className="h-4 w-4 animate-spin" /> Loading hospital data…
             </div>
