@@ -427,8 +427,8 @@ function HospitalDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (
           {coords &&
             data &&
             list.map((h, i) => {
-              const trName = translations[h.name] || getCached(h.name);
-              const trAddr = translations[h.addr] || getCached(h.addr);
+              const trName = translations[h.name] || getCached(h.name, lang);
+              const trAddr = translations[h.addr] || getCached(h.addr, lang);
               return (
                 <Card key={`${h.name}-${i}`} className="p-3">
                   <div className="flex items-start justify-between gap-2">
