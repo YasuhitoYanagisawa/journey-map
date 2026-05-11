@@ -277,11 +277,12 @@ function FestivalList({ items }: { items: Festival[] }) {
 
 function FestivalCard({ f }: { f: Festival }) {
   useTranslationVersion();
+  const [lang] = useTargetLang();
   const month = getMonthFromDate(f.date);
   const mapsUrl = `https://www.google.com/maps?q=${f.lat},${f.lng}`;
-  const enName = getCached(f.name);
-  const enDesc = f.desc ? getCached(f.desc) : undefined;
-  const enVenue = f.venue ? getCached(f.venue) : undefined;
+  const enName = getCached(f.name, lang);
+  const enDesc = f.desc ? getCached(f.desc, lang) : undefined;
+  const enVenue = f.venue ? getCached(f.venue, lang) : undefined;
   return (
     <Card className="p-3 hover:border-omamori-gold/40 transition-colors">
       <div className="flex items-start justify-between gap-2">
