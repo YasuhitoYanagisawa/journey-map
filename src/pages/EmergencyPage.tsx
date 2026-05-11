@@ -347,7 +347,8 @@ function HospitalDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (
   const { coords, error } = useGeo();
   const { data, loadErr, retry } = useDataset<Hosp>("hospitals", open);
   const [emOnly, setEmOnly] = useState(false);
-  const { translate, translations, loading: trLoading } = useTranslator();
+  const [lang] = useTargetLang();
+  const { translate, translations, loading: trLoading } = useTranslator(lang);
   const [showEN, setShowEN] = useState(false);
 
   const list = useMemo(() => {
