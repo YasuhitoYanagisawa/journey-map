@@ -226,7 +226,6 @@ const Upload = () => {
         const { error: uploadError } = await supabase.storage.from('photos').upload(fileName, pending.file);
         if (uploadError) throw uploadError;
 
-        const { data: urlData } = supabase.storage.from('photos').getPublicUrl(fileName);
         const geocode = pending.gpsData
           ? await reverseGeocode(pending.gpsData.latitude, pending.gpsData.longitude)
           : { prefecture: null, city: null, town: null };
@@ -235,7 +234,7 @@ const Upload = () => {
           user_id: user.id,
           filename: pending.file.name,
           storage_path: fileName,
-          thumbnail_url: urlData.publicUrl,
+          thumbnail_url: null,
           latitude: pending.gpsData?.latitude || null,
           longitude: pending.gpsData?.longitude || null,
           taken_at: pending.gpsData?.timestamp?.toISOString() || null,
