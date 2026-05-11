@@ -120,7 +120,7 @@ const Gallery = () => {
           className="relative aspect-square group"
         >
           <img
-            src={getPublicUrl(photo.storage_path)}
+            src={getPhotoUrl(photo.storage_path)}
             alt={photo.filename}
             className="w-full h-full object-cover rounded-sm"
             loading="lazy"
