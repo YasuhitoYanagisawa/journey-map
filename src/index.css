@@ -142,4 +142,20 @@
       transform: translateY(-10px);
     }
   }
+
+  .font-jp {
+    font-family: 'Noto Sans JP', 'Inter', system-ui, sans-serif;
+  }
+
+  .animate-omamori-pulse {
+    animation: omamori-pulse 2s ease-in-out infinite;
+  }
+  @keyframes omamori-pulse {
+    0%, 100% {
+      box-shadow: 0 0 0 0 hsl(var(--omamori-red) / 0.6);
+    }
+    50% {
+      box-shadow: 0 0 0 14px hsl(var(--omamori-red) / 0);
+    }
+  }
 }

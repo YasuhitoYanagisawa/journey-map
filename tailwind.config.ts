@@ -65,6 +65,14 @@ export default {
           route: "hsl(var(--map-route))",
           marker: "hsl(var(--map-marker))",
         },
+        "omamori-gold": {
+          DEFAULT: "hsl(var(--omamori-gold))",
+          foreground: "hsl(var(--omamori-gold-foreground))",
+        },
+        "omamori-red": {
+          DEFAULT: "hsl(var(--omamori-red))",
+          foreground: "hsl(var(--omamori-red-foreground))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",
