@@ -8,6 +8,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { toast } from '@/components/ui/sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
+import { useSignedPhotoUrls } from '@/hooks/useSignedPhotoUrl';
 import { formatDistanceToNow } from 'date-fns';
 import { ja } from 'date-fns/locale';
 
@@ -94,10 +95,8 @@ const Gallery = () => {
     }
   };
 
-  const getPublicUrl = (path: string) => {
-    const { data } = supabase.storage.from('photos').getPublicUrl(path);
-    return data.publicUrl;
-  };
+  const signedUrls = useSignedPhotoUrls(photos.map(p => p.storage_path));
+  const getPhotoUrl = (path: string) => signedUrls[path] || '';
 
   const activePhotos = photos.filter(p => !p.is_archived);
   const archivedPhotos = photos.filter(p => p.is_archived);
@@ -121,7 +120,7 @@ const Gallery = () => {
           className="relative aspect-square group"
         >
           <img
-            src={getPublicUrl(photo.storage_path)}
+            src={getPhotoUrl(photo.storage_path)}
             alt={photo.filename}
             className="w-full h-full object-cover rounded-sm"
             loading="lazy"

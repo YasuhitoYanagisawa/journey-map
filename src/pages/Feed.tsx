@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import LocationPicker from '@/components/LocationPicker';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
+import { useSignedPhotoUrls } from '@/hooks/useSignedPhotoUrl';
 import { formatDistanceToNow, format } from 'date-fns';
 import { ja } from 'date-fns/locale';
 import { renderWithHashtags } from '@/utils/hashtagUtils';
@@ -328,10 +329,8 @@ const Feed = () => {
     }
   };
 
-  const getPublicUrl = (path: string) => {
-    const { data } = supabase.storage.from('photos').getPublicUrl(path);
-    return data.publicUrl;
-  };
+  const signedUrls = useSignedPhotoUrls(photos.map(p => p.storage_path));
+  const getPhotoUrl = (path: string) => signedUrls[path] || '';
 
   const handleSetLocation = async (photoId: string, lat: number, lng: number) => {
     try {
@@ -521,7 +520,7 @@ const Feed = () => {
                 {/* Photo */}
                 <div className="aspect-square bg-muted">
                   <img
-                    src={getPublicUrl(photo.storage_path)}
+                    src={getPhotoUrl(photo.storage_path)}
                     alt={photo.filename}
                     className="w-full h-full object-cover"
                     loading="lazy"
