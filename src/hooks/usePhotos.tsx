@@ -133,22 +133,20 @@ export const usePhotos = () => {
           continue;
         }
 
-        // Get public URL
-        const { data: urlData } = supabase.storage
-          .from('photos')
-          .getPublicUrl(fileName);
+        // Sign a short-lived URL (bucket is private)
+        const signedUrl = await getSignedPhotoUrl(fileName);
 
         // Reverse geocode to get address info
         const geocodeResult = await reverseGeocode(photo.latitude, photo.longitude);
 
-        // Insert photo record
+        // Insert photo record (thumbnail_url kept null — we sign on demand)
         const { data: insertedPhoto, error: insertError } = await supabase
           .from('photos')
           .insert({
             user_id: user.id,
             filename: file.name,
             storage_path: fileName,
-            thumbnail_url: urlData.publicUrl,
+            thumbnail_url: null,
             latitude: photo.latitude,
             longitude: photo.longitude,
             taken_at: photo.timestamp.toISOString(),
@@ -170,7 +168,7 @@ export const usePhotos = () => {
           latitude: insertedPhoto.latitude!,
           longitude: insertedPhoto.longitude!,
           timestamp: new Date(insertedPhoto.taken_at!),
-          thumbnailUrl: insertedPhoto.thumbnail_url || '',
+          thumbnailUrl: signedUrl,
           prefecture: insertedPhoto.prefecture,
           city: insertedPhoto.city,
           town: insertedPhoto.town,
