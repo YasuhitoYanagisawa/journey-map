@@ -1,8 +1,13 @@
-// Hybrid AI router: Gemma 4 (Ollama) primary → Gemini (Lovable AI) fallback → static
+// Hybrid AI router:
+//   1) Gemma (WebLLM/WebGPU, in-browser, https-friendly)
+//   2) Gemma (Ollama on http://localhost — only on http dev)
+//   3) Gemini (Lovable AI Gateway)
+//   4) static fallback
 import { supabase } from "@/integrations/supabase/client";
 import { isOllamaAvailable, ollamaChat, type OllamaMessage } from "./ollama";
+import { getWebLLMStatus, isWebGPUAvailable, webllmChat } from "./webllm";
 
-export type AIEngine = "gemma4" | "gemini" | "static";
+export type AIEngine = "gemma-webllm" | "gemma4" | "gemini" | "static";
 
 export type AITask = "chat" | "recommend" | "medical-card" | "translate";
 
