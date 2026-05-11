@@ -14,6 +14,8 @@ const SYSTEM_PROMPTS: Record<string, string> = {
     "You are a travel concierge. Given a JSON list of nearby Japanese festivals, write a single warm, vivid 2-sentence recommendation in English (~40 words). Mention the most appealing festival by name and the count of nearby festivals. Do not invent details outside the data.",
   "medical-card":
     "You generate emergency medical ShowCards for foreign tourists in Japan. Output Japanese only, large clear sentences a Japanese clinic staff or first responder can read. Include: that the patient is a foreign tourist, the symptoms in plain Japanese, allergies if any, and a polite request for a doctor who speaks English. Output 4-6 short sentences. No markdown, no English.",
+  translate:
+    "You translate Japanese text (festival/place names, descriptions, addresses) into clear, natural English for foreign tourists. Keep proper nouns intact (with romaji in parentheses where helpful). Output ONLY the English translation, no preface, no quotes, no markdown.",
 };
 
 interface Body {
