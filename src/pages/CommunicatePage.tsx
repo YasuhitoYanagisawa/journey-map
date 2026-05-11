@@ -1,18 +1,17 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
 import {
   ArrowLeft,
   MessageCircle,
   Volume2,
-  Maximize2,
   Send,
   Loader2,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
 import BottomNav from "@/components/omamori/BottomNav";
 import EngineBadge from "@/components/omamori/EngineBadge";
 import LangPicker from "@/components/omamori/LangPicker";
@@ -25,16 +24,34 @@ import {
 } from "@/lib/useTranslate";
 import { PHRASE_CATEGORIES, type Phrase } from "@/data/phrases";
 import { runAI } from "@/lib/aiRouter";
-import { isOllamaAvailable, ollamaChat } from "@/lib/ollama";
 import { findNearby, fullTextFilter } from "@/lib/omamoriSearch";
 import { getDataset, loadDataset, type Festival, type Shelter, type Hospital } from "@/lib/omamoriDB";
 
 type Msg = { role: "user" | "assistant"; content: string; engine?: string };
 
+const STORAGE_PREFIX = "omamori_chat_history__";
+const MAX_HISTORY = 40;
+
+function loadHistory(catKey: string): Msg[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_PREFIX + catKey);
+    if (raw) return JSON.parse(raw) as Msg[];
+  } catch {}
+  return [];
+}
+
+function saveHistory(catKey: string, msgs: Msg[]) {
+  try {
+    localStorage.setItem(
+      STORAGE_PREFIX + catKey,
+      JSON.stringify(msgs.slice(-MAX_HISTORY)),
+    );
+  } catch {}
+}
+
 export default function CommunicatePage() {
   const [tab, setTab] = useState(PHRASE_CATEGORIES[0].key);
   const cat = PHRASE_CATEGORIES.find((c) => c.key === tab) ?? PHRASE_CATEGORIES[0];
-  const [showCard, setShowCard] = useState<Phrase | null>(null);
 
   return (
     <div className="min-h-screen bg-background pb-20 md:pb-4">
@@ -58,17 +75,10 @@ export default function CommunicatePage() {
           ))}
         </div>
 
-        {/* Phrase cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {cat.phrases.map((p, i) => (
-            <PhraseCard key={i} p={p} onShow={() => setShowCard(p)} />
-          ))}
-        </div>
-
-        <ChatPanel />
+        {/* AI Chat — main */}
+        <ChatPanel category={cat} />
       </div>
 
-      <ShowCardDialog phrase={showCard} onOpenChange={() => setShowCard(null)} />
       <BottomNav />
     </div>
   );
@@ -90,40 +100,6 @@ function Header() {
         <div className="ml-auto"><EngineBadge /></div>
       </div>
     </header>
-  );
-}
-
-// Phrase cards always speak the original Japanese.
-const speakJapanese = (text: string) => speak(text, "ja-JP");
-
-function PhraseCard({ p, onShow }: { p: Phrase; onShow: () => void }) {
-  return (
-    <Card className="p-3">
-      <div className="text-xs text-muted-foreground">{p.en}</div>
-      <div className="font-jp text-lg leading-tight mt-1">{p.ja}</div>
-      <div className="text-[11px] text-muted-foreground italic">{p.romaji}</div>
-      <div className="flex gap-2 mt-2">
-        <Button size="sm" variant="outline" onClick={() => speakJapanese(p.ja)} className="flex-1">
-          <Volume2 className="h-3.5 w-3.5" /> Speak
-        </Button>
-        <Button size="sm" variant="outline" onClick={onShow} className="flex-1">
-          <Maximize2 className="h-3.5 w-3.5" /> Show
-        </Button>
-      </div>
-    </Card>
-  );
-}
-
-function ShowCardDialog({ phrase, onOpenChange }: { phrase: Phrase | null; onOpenChange: () => void }) {
-  return (
-    <Dialog open={!!phrase} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md bg-white text-black border-white">
-        <div className="p-6 text-center font-jp">
-          <div className="text-4xl leading-tight font-bold">{phrase?.ja}</div>
-          <div className="mt-4 text-sm text-gray-500">{phrase?.en}</div>
-        </div>
-      </DialogContent>
-    </Dialog>
   );
 }
 
@@ -213,10 +189,50 @@ function tryParseToolCall(text: string): { tool: string; args: Record<string, an
   return null;
 }
 
-function ChatPanel() {
+function defaultGreeting(cat: { label: string; icon: string }): Msg {
+  return {
+    role: "assistant",
+    content: `${cat.icon} **${cat.label}** — このカテゴリで何でも聞いてください。\nAsk anything about ${cat.label.toLowerCase()}. I'll answer in English + 日本語 (romaji).`,
+  };
+}
+
+function ChatPanel({ category }: { category: typeof PHRASE_CATEGORIES[number] }) {
   const [lang] = useTargetLang();
   const { translate } = useTranslator(lang);
   const [speakingIdx, setSpeakingIdx] = useState<number | null>(null);
+
+  const [messages, setMessages] = useState<Msg[]>(() => {
+    const stored = loadHistory(category.key);
+    return stored.length ? stored : [defaultGreeting(category)];
+  });
+  const [input, setInput] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+
+  // Switch history on category change
+  useEffect(() => {
+    const stored = loadHistory(category.key);
+    setMessages(stored.length ? stored : [defaultGreeting(category)]);
+  }, [category.key]);
+
+  // Persist
+  useEffect(() => {
+    saveHistory(category.key, messages);
+  }, [category.key, messages]);
+
+  useEffect(() => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      (p) => setCoords({ lat: p.coords.latitude, lng: p.coords.longitude }),
+      () => {},
+      { timeout: 5000 },
+    );
+  }, []);
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+  }, [messages]);
 
   const handleSpeak = async (text: string, idx: number) => {
     const bcp47 = LANG_TO_BCP47[lang];
@@ -239,45 +255,23 @@ function ChatPanel() {
     }
   };
 
-  const [messages, setMessages] = useState<Msg[]>([
-    {
-      role: "assistant",
-      content:
-        "Hi! Ask me anything in English or Japanese — translation, festivals nearby, or where the closest shelter is.\n\nこんにちは！日本語でも英語でも質問してください。",
-    },
-  ]);
-  const [input, setInput] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
-  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const clearHistory = () => {
+    if (!confirm("この履歴を削除しますか？ / Clear this category's chat?")) return;
+    const greet = defaultGreeting(category);
+    setMessages([greet]);
+  };
 
-  useEffect(() => {
-    if (!navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition(
-      (p) => setCoords({ lat: p.coords.latitude, lng: p.coords.longitude }),
-      () => {},
-      { timeout: 5000 },
-    );
-  }, []);
-
-  useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-  }, [messages]);
-
-  const send = async () => {
-    const text = input.trim();
+  const sendText = async (text: string) => {
     if (!text || busy) return;
-    setInput("");
     const userMsg: Msg = { role: "user", content: text };
     setMessages((m) => [...m, userMsg]);
     setBusy(true);
 
-    const systemPrompt = `You are a bilingual cultural translator and travel concierge for tourists in Japan. ${
+    const systemPrompt = `You are a bilingual cultural translator and travel concierge for tourists in Japan. Current topic: ${category.label}. ${
       coords ? `User's approximate coords: ${coords.lat.toFixed(3)},${coords.lng.toFixed(3)}.` : ""
     } ${TOOLS_PROMPT}`;
 
     try {
-      // Pass 1
       const history = [...messages, userMsg].map((m) => ({
         role: m.role,
         content: m.content,
@@ -295,7 +289,7 @@ function ChatPanel() {
           {
             role: "assistant",
             content:
-              "🤖 AI assistant is offline. Use the phrase cards above for common situations.",
+              "🤖 AI assistant is offline. Try again when online.",
             engine: "static",
           },
         ]);
@@ -341,18 +335,36 @@ function ChatPanel() {
     }
   };
 
+  const send = async () => {
+    const text = input.trim();
+    if (!text) return;
+    setInput("");
+    await sendText(text);
+  };
+
+  const examplePhrases = useMemo(() => category.phrases.slice(0, 6), [category]);
+
   return (
     <Card className="p-3">
       <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
-        <div className="text-sm font-semibold">AI Chat</div>
+        <div className="text-sm font-semibold flex items-center gap-1.5">
+          <span>{category.icon}</span>
+          <span>{category.label}</span>
+          <span className="text-[10px] text-muted-foreground font-normal">— history saved per category</span>
+        </div>
         <div className="flex items-center gap-2">
           <LangPicker />
-          <span className="text-[10px] text-muted-foreground hidden sm:inline">
-            Gemma 4 → Gemini → static
-          </span>
+          <button
+            onClick={clearHistory}
+            className="text-[11px] inline-flex items-center gap-1 text-muted-foreground hover:text-destructive"
+            aria-label="Clear chat"
+          >
+            <Trash2 className="h-3 w-3" /> Clear
+          </button>
         </div>
       </div>
-      <div ref={scrollRef} className="h-72 overflow-y-auto space-y-2 rounded-md bg-secondary/30 p-2">
+
+      <div ref={scrollRef} className="h-80 overflow-y-auto space-y-2 rounded-md bg-secondary/30 p-2">
         {messages.map((m, i) => (
           <div
             key={i}
@@ -394,6 +406,19 @@ function ChatPanel() {
           </div>
         )}
       </div>
+
+      {/* Example prompts */}
+      <div className="mt-2">
+        <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">
+          Examples / 例文（タップで送信）
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {examplePhrases.map((p, i) => (
+            <ExampleChip key={i} p={p} disabled={busy} onSend={() => sendText(p.en)} />
+          ))}
+        </div>
+      </div>
+
       <div className="flex gap-2 mt-2">
         <Input
           value={input}
@@ -407,5 +432,18 @@ function ChatPanel() {
         </Button>
       </div>
     </Card>
+  );
+}
+
+function ExampleChip({ p, onSend, disabled }: { p: Phrase; onSend: () => void; disabled?: boolean }) {
+  return (
+    <button
+      onClick={onSend}
+      disabled={disabled}
+      title={`${p.ja}\n${p.romaji}`}
+      className="text-[11px] px-2 py-1 rounded-full border border-border bg-background hover:bg-secondary/60 disabled:opacity-50 transition"
+    >
+      {p.en}
+    </button>
   );
 }
