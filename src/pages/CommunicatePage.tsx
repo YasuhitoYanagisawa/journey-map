@@ -14,6 +14,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import BottomNav from "@/components/omamori/BottomNav";
 import EngineBadge from "@/components/omamori/EngineBadge";
+import GemmaLoader from "@/components/omamori/GemmaLoader";
 import LangPicker from "@/components/omamori/LangPicker";
 import { speak } from "@/lib/tts";
 import {
@@ -97,7 +98,7 @@ function Header() {
           <MessageCircle className="h-5 w-5" />
           Communicate <span className="font-jp text-muted-foreground text-sm">通訳</span>
         </h1>
-        <div className="ml-auto"><EngineBadge /></div>
+        <div className="ml-auto flex items-center gap-2"><GemmaLoader compact /><EngineBadge /></div>
       </div>
     </header>
   );

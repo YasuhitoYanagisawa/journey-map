@@ -1,8 +1,13 @@
-// Hybrid AI router: Gemma 4 (Ollama) primary → Gemini (Lovable AI) fallback → static
+// Hybrid AI router:
+//   1) Gemma (WebLLM/WebGPU, in-browser, https-friendly)
+//   2) Gemma (Ollama on http://localhost — only on http dev)
+//   3) Gemini (Lovable AI Gateway)
+//   4) static fallback
 import { supabase } from "@/integrations/supabase/client";
 import { isOllamaAvailable, ollamaChat, type OllamaMessage } from "./ollama";
+import { getWebLLMStatus, isWebGPUAvailable, webllmChat } from "./webllm";
 
-export type AIEngine = "gemma4" | "gemini" | "static";
+export type AIEngine = "gemma-webllm" | "gemma4" | "gemini" | "static";
 
 export type AITask = "chat" | "recommend" | "medical-card" | "translate";
 
@@ -82,8 +87,16 @@ async function callOllama(req: RouterRequest): Promise<string> {
   return ollamaChat(messages);
 }
 
+async function callWebLLM(req: RouterRequest): Promise<string> {
+  const messages: OllamaMessage[] = [];
+  if (req.systemPrompt) messages.push({ role: "system", content: req.systemPrompt });
+  if (req.messages) messages.push(...req.messages);
+  if (req.userText) messages.push({ role: "user", content: req.userText });
+  return webllmChat(messages);
+}
+
 export async function runAI(req: RouterRequest): Promise<RouterResult> {
-  // 1) Force Gemini path
+  // Force Gemini path
   if (req.forceGemini) {
     try {
       const text = await callGemini(req);
@@ -95,7 +108,18 @@ export async function runAI(req: RouterRequest): Promise<RouterResult> {
     }
   }
 
-  // 2) Try Gemma 4 (Ollama) first - free, local, private
+  // 1) WebLLM Gemma — only if model is already loaded (don't force a 1.5GB DL during a chat)
+  if (isWebGPUAvailable() && getWebLLMStatus() === "ready") {
+    try {
+      const text = await callWebLLM(req);
+      setEngine("gemma-webllm");
+      return { engine: "gemma-webllm", text };
+    } catch (e) {
+      console.warn("[aiRouter] WebLLM call failed, falling back", e);
+    }
+  }
+
+  // 2) Ollama Gemma (only works on http dev)
   if (await isOllamaAvailable()) {
     try {
       const text = await callOllama(req);
@@ -117,18 +141,21 @@ export async function runAI(req: RouterRequest): Promise<RouterResult> {
     }
   }
 
-  // 4) Static fallback (caller-provided)
+  // 4) Static fallback
   setEngine("static");
   return { engine: "static", text: "" };
 }
 
 export function engineLabel(e: AIEngine): { icon: string; label: string; color: string } {
   switch (e) {
+    case "gemma-webllm":
+      return { icon: "🟢", label: "Gemma (browser)", color: "text-emerald-500" };
     case "gemma4":
-      return { icon: "🟢", label: "Gemma 4 (local)", color: "text-emerald-500" };
+      return { icon: "🟢", label: "Gemma (Ollama)", color: "text-emerald-500" };
     case "gemini":
       return { icon: "🔵", label: "Gemini Cloud", color: "text-sky-500" };
     default:
       return { icon: "⚪", label: "Offline / static", color: "text-muted-foreground" };
   }
 }
+
