@@ -15,8 +15,14 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import BottomNav from "@/components/omamori/BottomNav";
 import EngineBadge from "@/components/omamori/EngineBadge";
-import TTSLangPicker from "@/components/omamori/TTSLangPicker";
+import LangPicker from "@/components/omamori/LangPicker";
 import { speak } from "@/lib/tts";
+import {
+  LANG_TO_BCP47,
+  getCached,
+  useTargetLang,
+  useTranslator,
+} from "@/lib/useTranslate";
 import { PHRASE_CATEGORIES, type Phrase } from "@/data/phrases";
 import { runAI } from "@/lib/aiRouter";
 import { isOllamaAvailable, ollamaChat } from "@/lib/ollama";
@@ -87,10 +93,8 @@ function Header() {
   );
 }
 
-// Phrase cards always use the original Japanese voice regardless of user pref.
+// Phrase cards always speak the original Japanese.
 const speakJapanese = (text: string) => speak(text, "ja-JP");
-// Chat assistant uses the user-selected TTS language (auto by default).
-const speakAuto = (text: string) => speak(text);
 
 function PhraseCard({ p, onShow }: { p: Phrase; onShow: () => void }) {
   return (
