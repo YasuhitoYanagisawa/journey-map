@@ -14,6 +14,7 @@ import FestivalsPage from "./pages/FestivalsPage";
 import CommunicatePage from "./pages/CommunicatePage";
 import EmergencyPage from "./pages/EmergencyPage";
 import NotFound from "./pages/NotFound";
+import BottomNav from "@/components/omamori/BottomNav";
 
 const queryClient = new QueryClient();
 
@@ -37,6 +38,7 @@ const App = () => (
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
+          <BottomNav />
         </BrowserRouter>
       </TooltipProvider>
     </AuthProvider>

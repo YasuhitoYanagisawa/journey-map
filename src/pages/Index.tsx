@@ -11,6 +11,7 @@ import LayerToggle from '@/components/LayerToggle';
 import EventTaskList from '@/components/EventTaskList';
 import EventCoverageKPI from '@/components/EventCoverageKPI';
 import EvaluationPanel from '@/components/EvaluationPanel';
+import OmamoriHomeSection from '@/components/omamori/OmamoriHomeSection';
 
 import AdminStatsPanel from '@/components/AdminStatsPanel';
 import ViewModeToggle from '@/components/ViewModeToggle';
@@ -236,7 +237,7 @@ const Index = () => {
                 
                 <p className="text-lg text-muted-foreground max-w-md mx-auto">
                   スマートフォンで撮った写真をアップロードするだけで、
-                  GPS情報から移動経路を美しく表示します
+                  GPS情報から訪れた場所を地図にマッピングします
                 </p>
               </motion.div>
 
@@ -264,6 +265,11 @@ const Index = () => {
                   </div>
                 ))}
               </motion.div>
+
+              {/* Omamori section */}
+              <div className="mt-8 w-full max-w-4xl">
+                <OmamoriHomeSection />
+              </div>
 
               {/* Nearby News on Welcome Screen */}
               <div className="mt-8 w-full max-w-4xl">
@@ -417,12 +423,13 @@ const Index = () => {
               </div>
 
               {/* News + Events Section - Below Map */}
-              <div className="px-4 pb-4">
+              <div className="px-4 pb-4 space-y-4">
                 <NearbyNews
                   photos={displayPhotos}
                   onAddEvents={addMultipleEvents}
                   isLoggedIn={!!user}
                 />
+                <OmamoriHomeSection />
               </div>
             </motion.div>
           )}
