@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import LocationPicker from '@/components/LocationPicker';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
+import { useSignedPhotoUrls } from '@/hooks/useSignedPhotoUrl';
 import { formatDistanceToNow, format } from 'date-fns';
 import { ja } from 'date-fns/locale';
 import { renderWithHashtags } from '@/utils/hashtagUtils';
