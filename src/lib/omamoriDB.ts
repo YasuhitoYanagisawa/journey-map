@@ -135,7 +135,7 @@ export async function loadDataset<T = unknown>(
   let textStream: ReadableStream<Uint8Array> = body;
   if (src.gzipped && typeof DecompressionStream !== "undefined") {
     onProgress?.({ loaded: 0, total: 0, phase: "decompressing" });
-    textStream = body.pipeThrough(new DecompressionStream("gzip"));
+    textStream = body.pipeThrough(new DecompressionStream("gzip") as unknown as ReadableWritablePair<Uint8Array, Uint8Array>);
   }
 
   // Read full text
