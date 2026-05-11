@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Noto+Sans+JP:wght@400;500;700;900&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -61,6 +61,12 @@
     --map-marker: 36 100% 50%;
     --map-heatmap-low: 210 60% 50%;
     --map-heatmap-high: 0 80% 55%;
+
+    /* Omamori accents */
+    --omamori-gold: 41 80% 47%;
+    --omamori-gold-foreground: 222 47% 6%;
+    --omamori-red: 6 78% 57%;
+    --omamori-red-foreground: 0 0% 100%;
   }
 }
 
@@ -134,6 +140,22 @@
     }
     50% {
       transform: translateY(-10px);
+    }
+  }
+
+  .font-jp {
+    font-family: 'Noto Sans JP', 'Inter', system-ui, sans-serif;
+  }
+
+  .animate-omamori-pulse {
+    animation: omamori-pulse 2s ease-in-out infinite;
+  }
+  @keyframes omamori-pulse {
+    0%, 100% {
+      box-shadow: 0 0 0 0 hsl(var(--omamori-red) / 0.6);
+    }
+    50% {
+      box-shadow: 0 0 0 14px hsl(var(--omamori-red) / 0);
     }
   }
 }
