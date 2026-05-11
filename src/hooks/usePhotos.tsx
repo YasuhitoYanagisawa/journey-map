@@ -5,6 +5,7 @@ import { PhotoLocation } from '@/types/photo';
 import { parseMultiplePhotos } from '@/utils/exifParser';
 import { reverseGeocode } from '@/utils/reverseGeocode';
 import { toast } from '@/components/ui/sonner';
+import { getSignedPhotoUrl, getSignedPhotoUrls } from '@/lib/photoUrl';
 
 export const usePhotos = () => {
   const { user } = useAuth();
