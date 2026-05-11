@@ -11,7 +11,8 @@ import EngineBadge from "@/components/omamori/EngineBadge";
 import BottomNav from "@/components/omamori/BottomNav";
 import { findNearby, fullTextFilter, getMonthFromDate, formatDistance } from "@/lib/omamoriSearch";
 import { runAI } from "@/lib/aiRouter";
-import { useTranslator, getCached, useTranslationVersion } from "@/lib/useTranslate";
+import { useTranslator, getCached, useTranslationVersion, useTargetLang } from "@/lib/useTranslate";
+import LangPicker from "@/components/omamori/LangPicker";
 import { Languages } from "lucide-react";
 import type { Festival } from "@/lib/omamoriDB";
 
@@ -188,11 +189,14 @@ function FestivalsBody({ data }: { data: Festival[] }) {
         </select>
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
         <div className="text-xs text-muted-foreground">
           {filtered.length.toLocaleString()} FESTIVALS FOUND
         </div>
-        <TranslateBar items={filtered.slice(0, 50)} />
+        <div className="ml-auto flex items-center gap-2">
+          <LangPicker />
+          <TranslateBar items={filtered.slice(0, 50)} />
+        </div>
       </div>
 
       <FestivalList items={filtered} />
@@ -201,8 +205,8 @@ function FestivalsBody({ data }: { data: Festival[] }) {
 }
 
 function TranslateBar({ items }: { items: Festival[] }) {
-  const { translate, loading } = useTranslator();
-  const [done, setDone] = useState(false);
+  const [lang] = useTargetLang();
+  const { translate, loading } = useTranslator(lang);
   const handle = async () => {
     const texts: string[] = [];
     items.forEach((f) => {
@@ -211,18 +215,17 @@ function TranslateBar({ items }: { items: Festival[] }) {
       if (f.venue) texts.push(f.venue);
     });
     await translate(texts);
-    setDone(true);
   };
   return (
     <Button
       size="sm"
       variant="outline"
-      className="ml-auto h-7 text-xs"
+      className="h-7 text-xs"
       onClick={handle}
       disabled={loading || items.length === 0}
     >
       {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Languages className="h-3 w-3" />}
-      {done ? "EN added" : "Translate visible"}
+      Translate
     </Button>
   );
 }
@@ -274,11 +277,12 @@ function FestivalList({ items }: { items: Festival[] }) {
 
 function FestivalCard({ f }: { f: Festival }) {
   useTranslationVersion();
+  const [lang] = useTargetLang();
   const month = getMonthFromDate(f.date);
   const mapsUrl = `https://www.google.com/maps?q=${f.lat},${f.lng}`;
-  const enName = getCached(f.name);
-  const enDesc = f.desc ? getCached(f.desc) : undefined;
-  const enVenue = f.venue ? getCached(f.venue) : undefined;
+  const enName = getCached(f.name, lang);
+  const enDesc = f.desc ? getCached(f.desc, lang) : undefined;
+  const enVenue = f.venue ? getCached(f.venue, lang) : undefined;
   return (
     <Card className="p-3 hover:border-omamori-gold/40 transition-colors">
       <div className="flex items-start justify-between gap-2">

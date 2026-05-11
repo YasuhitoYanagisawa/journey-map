@@ -21,7 +21,8 @@ import EngineBadge from "@/components/omamori/EngineBadge";
 import { findNearby, formatDistance } from "@/lib/omamoriSearch";
 import { getDataset, loadDataset, type Shelter, type Hospital as Hosp } from "@/lib/omamoriDB";
 import { runAI } from "@/lib/aiRouter";
-import { useTranslator, getCached } from "@/lib/useTranslate";
+import { useTranslator, getCached, useTargetLang } from "@/lib/useTranslate";
+import LangPicker from "@/components/omamori/LangPicker";
 import { Languages } from "lucide-react";
 
 type Coords = { lat: number; lng: number };
@@ -183,25 +184,16 @@ function useDataset<T>(name: "shelters" | "hospitals", enabled: boolean) {
   return { data, loadErr, retry: () => setAttempt((a) => a + 1) };
 }
 
-function openMaps(lat: number, lng: number) {
-  const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
-  // Use window.open to escape iframe sandbox in preview
-  const w = window.open(url, "_blank", "noopener,noreferrer");
-  if (!w) {
-    // Popup blocked → try top-level navigation
-    try {
-      (window.top || window).location.href = url;
-    } catch {
-      window.location.href = url;
-    }
-  }
+function mapsUrl(lat: number, lng: number) {
+  return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
 }
 
 function ShelterDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (b: boolean) => void }) {
   const { coords, error } = useGeo();
   const { data, loadErr, retry } = useDataset<Shelter>("shelters", open);
   const [filter, setFilter] = useState<"all" | "eq" | "ts" | "fl" | "vo">("all");
-  const { translate, translations, loading: trLoading } = useTranslator();
+  const [lang] = useTargetLang();
+  const { translate, translations, loading: trLoading } = useTranslator(lang);
   const [showEN, setShowEN] = useState(false);
 
   const list = useMemo(() => {
@@ -249,16 +241,19 @@ function ShelterDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (b
               {c.l}
             </button>
           ))}
-          <Button
-            size="sm"
-            variant="outline"
-            className="ml-auto h-7 text-xs"
-            onClick={handleTranslate}
-            disabled={trLoading || list.length === 0}
-          >
-            {trLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Languages className="h-3 w-3" />}
-            {showEN ? "EN" : "Translate"}
-          </Button>
+          <div className="ml-auto flex items-center gap-2">
+            <LangPicker />
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs"
+              onClick={handleTranslate}
+              disabled={trLoading || list.length === 0}
+            >
+              {trLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Languages className="h-3 w-3" />}
+              Translate
+            </Button>
+          </div>
         </div>
         <div className="overflow-auto -mx-2 px-2 space-y-2">
           {error && <div className="text-sm text-destructive">{error}</div>}
@@ -286,8 +281,8 @@ function ShelterDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (b
                 key={`${s.name}-${i}`}
                 s={s}
                 showEN={showEN}
-                trName={translations[s.name] || getCached(s.name)}
-                trAddr={translations[s.addr] || getCached(s.addr)}
+                trName={translations[s.name] || getCached(s.name, lang)}
+                trAddr={translations[s.addr] || getCached(s.addr, lang)}
               />
             ))}
           {coords && data && list.length === 0 && (
@@ -334,12 +329,14 @@ function ShelterCard({
         </div>
         <div className="text-right shrink-0">
           <div className="text-base font-bold text-emerald-400">{formatDistance(s._distance)}</div>
-          <button
-            onClick={() => openMaps(s.lat, s.lng)}
+          <a
+            href={mapsUrl(s.lat, s.lng)}
+            target="_blank"
+            rel="noopener noreferrer"
             className="text-[11px] text-primary inline-flex items-center gap-1 hover:underline"
           >
             <Navigation className="h-3 w-3" /> Navigate
-          </button>
+          </a>
         </div>
       </div>
     </Card>
@@ -350,7 +347,8 @@ function HospitalDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (
   const { coords, error } = useGeo();
   const { data, loadErr, retry } = useDataset<Hosp>("hospitals", open);
   const [emOnly, setEmOnly] = useState(false);
-  const { translate, translations, loading: trLoading } = useTranslator();
+  const [lang] = useTargetLang();
+  const { translate, translations, loading: trLoading } = useTranslator(lang);
   const [showEN, setShowEN] = useState(false);
 
   const list = useMemo(() => {
@@ -390,16 +388,19 @@ function HospitalDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (
           >
             🔴 Emergency only
           </button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="ml-auto h-7 text-xs"
-            onClick={handleTranslate}
-            disabled={trLoading || list.length === 0}
-          >
-            {trLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Languages className="h-3 w-3" />}
-            {showEN ? "EN" : "Translate"}
-          </Button>
+          <div className="ml-auto flex items-center gap-2">
+            <LangPicker />
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs"
+              onClick={handleTranslate}
+              disabled={trLoading || list.length === 0}
+            >
+              {trLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Languages className="h-3 w-3" />}
+              Translate
+            </Button>
+          </div>
         </div>
         <p className="text-[10px] text-muted-foreground -mt-1">
           ⚠️ Hospital phone numbers are not in the offline dataset. For ambulance dial 119.
@@ -426,8 +427,8 @@ function HospitalDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (
           {coords &&
             data &&
             list.map((h, i) => {
-              const trName = translations[h.name] || getCached(h.name);
-              const trAddr = translations[h.addr] || getCached(h.addr);
+              const trName = translations[h.name] || getCached(h.name, lang);
+              const trAddr = translations[h.addr] || getCached(h.addr, lang);
               return (
                 <Card key={`${h.name}-${i}`} className="p-3">
                   <div className="flex items-start justify-between gap-2">
@@ -455,12 +456,14 @@ function HospitalDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (
                     </div>
                     <div className="text-right shrink-0 flex flex-col gap-1">
                       <div className="text-base font-bold text-sky-400">{formatDistance(h._distance)}</div>
-                      <button
-                        onClick={() => openMaps(h.lat, h.lng)}
+                      <a
+                        href={mapsUrl(h.lat, h.lng)}
+                        target="_blank"
+                        rel="noopener noreferrer"
                         className="text-[11px] text-primary inline-flex items-center gap-1 hover:underline justify-end"
                       >
                         <Navigation className="h-3 w-3" /> Navigate
-                      </button>
+                      </a>
                       <a
                         href="tel:119"
                         className="text-[11px] text-omamori-red inline-flex items-center gap-1 hover:underline justify-end"
