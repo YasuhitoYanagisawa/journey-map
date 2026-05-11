@@ -350,12 +350,24 @@ function HospitalDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (
   const { coords, error } = useGeo();
   const { data, loadErr, retry } = useDataset<Hosp>("hospitals", open);
   const [emOnly, setEmOnly] = useState(false);
+  const { translate, translations, loading: trLoading } = useTranslator();
+  const [showEN, setShowEN] = useState(false);
 
   const list = useMemo(() => {
     if (!data || !coords) return [];
     const items = emOnly ? data.filter((h) => h.em === 1) : data;
     return findNearby(items, coords.lat, coords.lng, 50, 30);
   }, [data, coords, emOnly]);
+
+  const handleTranslate = async () => {
+    setShowEN(true);
+    const texts: string[] = [];
+    list.forEach((h) => {
+      texts.push(h.name);
+      texts.push(h.addr);
+    });
+    await translate(texts);
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -365,7 +377,7 @@ function HospitalDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (
             <Hospital className="h-4 w-4 text-sky-500" /> Nearest Hospitals
           </DialogTitle>
         </DialogHeader>
-        <div className="flex gap-1">
+        <div className="flex gap-1 items-center">
           <button
             onClick={() => setEmOnly(false)}
             className={`text-xs px-2.5 py-1 rounded-full border ${!emOnly ? "bg-primary text-primary-foreground" : "bg-secondary"}`}
@@ -378,7 +390,20 @@ function HospitalDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (
           >
             🔴 Emergency only
           </button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="ml-auto h-7 text-xs"
+            onClick={handleTranslate}
+            disabled={trLoading || list.length === 0}
+          >
+            {trLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Languages className="h-3 w-3" />}
+            {showEN ? "EN" : "Translate"}
+          </Button>
         </div>
+        <p className="text-[10px] text-muted-foreground -mt-1">
+          ⚠️ Hospital phone numbers are not in the offline dataset. For ambulance dial 119.
+        </p>
         <div className="overflow-auto -mx-2 px-2 space-y-2">
           {error && <div className="text-sm text-destructive">{error}</div>}
           {loadErr && (
@@ -401,33 +426,46 @@ function HospitalDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (
           {coords &&
             data &&
             list.map((h, i) => {
-              const url = `https://www.google.com/maps/dir/?api=1&destination=${h.lat},${h.lng}`;
+              const trName = translations[h.name] || getCached(h.name);
+              const trAddr = translations[h.addr] || getCached(h.addr);
               return (
                 <Card key={`${h.name}-${i}`} className="p-3">
                   <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <div className="font-jp font-semibold leading-tight truncate">{h.name}</div>
+                      {showEN && trName && (
+                        <div className="text-[11px] text-sky-300 truncate">{trName}</div>
+                      )}
                       <div className="text-[11px] font-jp text-muted-foreground truncate">{h.addr}</div>
+                      {showEN && trAddr && (
+                        <div className="text-[11px] text-muted-foreground truncate">{trAddr}</div>
+                      )}
                       <div className="flex flex-wrap gap-1 mt-1.5">
                         {h.em === 1 && (
                           <Badge className="bg-omamori-red/30 text-omamori-red border-0 text-[10px]">
-                            Emergency OK
+                            Emergency / 救急 OK
                           </Badge>
                         )}
                         {h.beds && (
-                          <span className="text-[10px] font-jp text-muted-foreground">病床: {h.beds}</span>
+                          <span className="text-[10px] font-jp text-muted-foreground">
+                            Beds/病床: {h.beds}
+                          </span>
                         )}
                       </div>
                     </div>
-                    <div className="text-right shrink-0">
+                    <div className="text-right shrink-0 flex flex-col gap-1">
                       <div className="text-base font-bold text-sky-400">{formatDistance(h._distance)}</div>
-                      <a
-                        href={url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-[11px] text-primary inline-flex items-center gap-1 hover:underline"
+                      <button
+                        onClick={() => openMaps(h.lat, h.lng)}
+                        className="text-[11px] text-primary inline-flex items-center gap-1 hover:underline justify-end"
                       >
                         <Navigation className="h-3 w-3" /> Navigate
+                      </button>
+                      <a
+                        href="tel:119"
+                        className="text-[11px] text-omamori-red inline-flex items-center gap-1 hover:underline justify-end"
+                      >
+                        <Phone className="h-3 w-3" /> 119
                       </a>
                     </div>
                   </div>
