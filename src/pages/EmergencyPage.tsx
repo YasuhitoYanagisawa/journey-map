@@ -183,10 +183,26 @@ function useDataset<T>(name: "shelters" | "hospitals", enabled: boolean) {
   return { data, loadErr, retry: () => setAttempt((a) => a + 1) };
 }
 
+function openMaps(lat: number, lng: number) {
+  const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+  // Use window.open to escape iframe sandbox in preview
+  const w = window.open(url, "_blank", "noopener,noreferrer");
+  if (!w) {
+    // Popup blocked → try top-level navigation
+    try {
+      (window.top || window).location.href = url;
+    } catch {
+      window.location.href = url;
+    }
+  }
+}
+
 function ShelterDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (b: boolean) => void }) {
   const { coords, error } = useGeo();
   const { data, loadErr, retry } = useDataset<Shelter>("shelters", open);
   const [filter, setFilter] = useState<"all" | "eq" | "ts" | "fl" | "vo">("all");
+  const { translate, translations, loading: trLoading } = useTranslator();
+  const [showEN, setShowEN] = useState(false);
 
   const list = useMemo(() => {
     if (!data || !coords) return [];
@@ -197,6 +213,16 @@ function ShelterDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (b
     return findNearby(items, coords.lat, coords.lng, 50, 30);
   }, [data, coords, filter]);
 
+  const handleTranslate = async () => {
+    setShowEN(true);
+    const texts: string[] = [];
+    list.forEach((s) => {
+      texts.push(s.name);
+      texts.push(s.addr);
+    });
+    await translate(texts);
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg max-h-[85vh] overflow-hidden flex flex-col">
@@ -205,7 +231,7 @@ function ShelterDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (b
             <MapPin className="h-4 w-4 text-emerald-500" /> Nearest Shelters
           </DialogTitle>
         </DialogHeader>
-        <div className="flex gap-1 flex-wrap">
+        <div className="flex gap-1 flex-wrap items-center">
           {[
             { k: "all", l: "All" },
             { k: "eq", l: "🟢 Earthquake" },
@@ -223,6 +249,16 @@ function ShelterDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (b
               {c.l}
             </button>
           ))}
+          <Button
+            size="sm"
+            variant="outline"
+            className="ml-auto h-7 text-xs"
+            onClick={handleTranslate}
+            disabled={trLoading || list.length === 0}
+          >
+            {trLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Languages className="h-3 w-3" />}
+            {showEN ? "EN" : "Translate"}
+          </Button>
         </div>
         <div className="overflow-auto -mx-2 px-2 space-y-2">
           {error && <div className="text-sm text-destructive">{error}</div>}
@@ -246,7 +282,13 @@ function ShelterDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (b
           {coords &&
             data &&
             list.map((s, i) => (
-              <ShelterCard key={`${s.name}-${i}`} s={s} />
+              <ShelterCard
+                key={`${s.name}-${i}`}
+                s={s}
+                showEN={showEN}
+                trName={translations[s.name] || getCached(s.name)}
+                trAddr={translations[s.addr] || getCached(s.addr)}
+              />
             ))}
           {coords && data && list.length === 0 && (
             <div className="text-sm text-muted-foreground py-6 text-center">
@@ -259,34 +301,45 @@ function ShelterDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (b
   );
 }
 
-function ShelterCard({ s }: { s: Shelter & { _distance: number } }) {
-  const url = `https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lng}`;
+function ShelterCard({
+  s,
+  showEN,
+  trName,
+  trAddr,
+}: {
+  s: Shelter & { _distance: number };
+  showEN: boolean;
+  trName?: string;
+  trAddr?: string;
+}) {
   return (
     <Card className="p-3">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="font-jp font-semibold leading-tight truncate">{s.name}</div>
+          {showEN && trName && <div className="text-[11px] text-sky-300 truncate">{trName}</div>}
           <div className="text-[11px] font-jp text-muted-foreground truncate">{s.addr}</div>
+          {showEN && trAddr && <div className="text-[11px] text-muted-foreground truncate">{trAddr}</div>}
           <div className="flex flex-wrap gap-1 mt-1.5">
-            {s.eq === 1 && <Badge className="bg-emerald-500/20 text-emerald-300 border-0 text-[10px]">地震</Badge>}
-            {s.ts === 1 && <Badge className="bg-sky-500/20 text-sky-300 border-0 text-[10px]">津波</Badge>}
-            {s.fl === 1 && <Badge className="bg-amber-500/20 text-amber-300 border-0 text-[10px]">洪水</Badge>}
-            {s.vo === 1 && <Badge className="bg-red-500/20 text-red-300 border-0 text-[10px]">火山</Badge>}
+            {s.eq === 1 && <Badge className="bg-emerald-500/20 text-emerald-300 border-0 text-[10px]">地震 EQ</Badge>}
+            {s.ts === 1 && <Badge className="bg-sky-500/20 text-sky-300 border-0 text-[10px]">津波 Tsunami</Badge>}
+            {s.fl === 1 && <Badge className="bg-amber-500/20 text-amber-300 border-0 text-[10px]">洪水 Flood</Badge>}
+            {s.vo === 1 && <Badge className="bg-red-500/20 text-red-300 border-0 text-[10px]">火山 Volcano</Badge>}
             {s.cap > 0 && (
-              <span className="text-[10px] font-jp text-muted-foreground">収容: {s.cap.toLocaleString()}人</span>
+              <span className="text-[10px] font-jp text-muted-foreground">
+                収容/Cap: {s.cap.toLocaleString()}
+              </span>
             )}
           </div>
         </div>
         <div className="text-right shrink-0">
           <div className="text-base font-bold text-emerald-400">{formatDistance(s._distance)}</div>
-          <a
-            href={url}
-            target="_blank"
-            rel="noopener noreferrer"
+          <button
+            onClick={() => openMaps(s.lat, s.lng)}
             className="text-[11px] text-primary inline-flex items-center gap-1 hover:underline"
           >
             <Navigation className="h-3 w-3" /> Navigate
-          </a>
+          </button>
         </div>
       </div>
     </Card>
