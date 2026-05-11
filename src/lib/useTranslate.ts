@@ -4,6 +4,7 @@ import { useState, useSyncExternalStore } from "react";
 import { runAI } from "./aiRouter";
 
 export type TargetLang =
+  | "原文 (JP)"
   | "English"
   | "中文 (简体)"
   | "한국어"
@@ -16,6 +17,7 @@ export type TargetLang =
   | "Bahasa Indonesia";
 
 export const TARGET_LANGS: TargetLang[] = [
+  "原文 (JP)",
   "English",
   "中文 (简体)",
   "한국어",
@@ -27,6 +29,21 @@ export const TARGET_LANGS: TargetLang[] = [
   "ภาษาไทย",
   "Bahasa Indonesia",
 ];
+
+// BCP-47 voice code per target language for SpeechSynthesis
+export const LANG_TO_BCP47: Record<TargetLang, string> = {
+  "原文 (JP)": "ja-JP",
+  English: "en-US",
+  "中文 (简体)": "zh-CN",
+  "한국어": "ko-KR",
+  Español: "es-ES",
+  Français: "fr-FR",
+  Deutsch: "de-DE",
+  Português: "pt-BR",
+  "Tiếng Việt": "vi-VN",
+  "ภาษาไทย": "th-TH",
+  "Bahasa Indonesia": "id-ID",
+};
 
 const LS_KEY = "omamori_tr_cache_v2";
 const memCache = new Map<string, string>();

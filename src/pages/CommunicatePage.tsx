@@ -15,8 +15,14 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import BottomNav from "@/components/omamori/BottomNav";
 import EngineBadge from "@/components/omamori/EngineBadge";
-import TTSLangPicker from "@/components/omamori/TTSLangPicker";
+import LangPicker from "@/components/omamori/LangPicker";
 import { speak } from "@/lib/tts";
+import {
+  LANG_TO_BCP47,
+  getCached,
+  useTargetLang,
+  useTranslator,
+} from "@/lib/useTranslate";
 import { PHRASE_CATEGORIES, type Phrase } from "@/data/phrases";
 import { runAI } from "@/lib/aiRouter";
 import { isOllamaAvailable, ollamaChat } from "@/lib/ollama";
@@ -87,10 +93,8 @@ function Header() {
   );
 }
 
-// Phrase cards always use the original Japanese voice regardless of user pref.
+// Phrase cards always speak the original Japanese.
 const speakJapanese = (text: string) => speak(text, "ja-JP");
-// Chat assistant uses the user-selected TTS language (auto by default).
-const speakAuto = (text: string) => speak(text);
 
 function PhraseCard({ p, onShow }: { p: Phrase; onShow: () => void }) {
   return (
@@ -210,6 +214,31 @@ function tryParseToolCall(text: string): { tool: string; args: Record<string, an
 }
 
 function ChatPanel() {
+  const [lang] = useTargetLang();
+  const { translate } = useTranslator(lang);
+  const [speakingIdx, setSpeakingIdx] = useState<number | null>(null);
+
+  const handleSpeak = async (text: string, idx: number) => {
+    const bcp47 = LANG_TO_BCP47[lang];
+    if (lang === "原文 (JP)") {
+      speak(text, bcp47);
+      return;
+    }
+    setSpeakingIdx(idx);
+    try {
+      const cached = getCached(text, lang);
+      if (cached) {
+        speak(cached, bcp47);
+      } else {
+        await translate([text]);
+        const out = getCached(text, lang) || text;
+        speak(out, bcp47);
+      }
+    } finally {
+      setSpeakingIdx(null);
+    }
+  };
+
   const [messages, setMessages] = useState<Msg[]>([
     {
       role: "assistant",
@@ -317,7 +346,7 @@ function ChatPanel() {
       <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
         <div className="text-sm font-semibold">AI Chat</div>
         <div className="flex items-center gap-2">
-          <TTSLangPicker />
+          <LangPicker />
           <span className="text-[10px] text-muted-foreground hidden sm:inline">
             Gemma 4 → Gemini → static
           </span>
@@ -340,11 +369,17 @@ function ChatPanel() {
                 </div>
                 <div className="flex justify-end mt-1">
                   <button
-                    onClick={() => speakAuto(m.content)}
-                    className="text-[10px] inline-flex items-center gap-1 text-muted-foreground hover:text-foreground"
+                    onClick={() => handleSpeak(m.content, i)}
+                    disabled={speakingIdx === i}
+                    className="text-[10px] inline-flex items-center gap-1 text-muted-foreground hover:text-foreground disabled:opacity-50"
                     aria-label="Speak"
                   >
-                    <Volume2 className="h-3 w-3" /> Speak
+                    {speakingIdx === i ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <Volume2 className="h-3 w-3" />
+                    )}
+                    Speak ({lang})
                   </button>
                 </div>
               </>
