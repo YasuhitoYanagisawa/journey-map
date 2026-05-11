@@ -183,18 +183,8 @@ function useDataset<T>(name: "shelters" | "hospitals", enabled: boolean) {
   return { data, loadErr, retry: () => setAttempt((a) => a + 1) };
 }
 
-function openMaps(lat: number, lng: number) {
-  const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
-  // Use window.open to escape iframe sandbox in preview
-  const w = window.open(url, "_blank", "noopener,noreferrer");
-  if (!w) {
-    // Popup blocked → try top-level navigation
-    try {
-      (window.top || window).location.href = url;
-    } catch {
-      window.location.href = url;
-    }
-  }
+function mapsUrl(lat: number, lng: number) {
+  return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
 }
 
 function ShelterDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (b: boolean) => void }) {
