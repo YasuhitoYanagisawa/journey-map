@@ -377,12 +377,6 @@ function ChatPanel() {
           </div>
         )}
       </div>
-        {busy && (
-          <div className="text-xs text-muted-foreground inline-flex items-center gap-1.5">
-            <Loader2 className="h-3 w-3 animate-spin" /> thinking…
-          </div>
-        )}
-      </div>
       <div className="flex gap-2 mt-2">
         <Input
           value={input}
