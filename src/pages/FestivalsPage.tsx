@@ -273,6 +273,7 @@ function FestivalList({ items }: { items: Festival[] }) {
 }
 
 function FestivalCard({ f }: { f: Festival }) {
+  useTranslationVersion();
   const month = getMonthFromDate(f.date);
   const mapsUrl = `https://www.google.com/maps?q=${f.lat},${f.lng}`;
   const enName = getCached(f.name);
