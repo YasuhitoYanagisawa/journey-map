@@ -52,12 +52,6 @@ export default function EmergencyPage() {
           <ActionTile icon={<Hospital />} title="Find Hospital" sub="病院" onClick={() => setOpenHospital(true)} accent="from-sky-500/20 border-sky-500/40" />
           <ActionTile icon={<Waves />} title="Earthquake Guide" sub="地震対応" onClick={() => setOpenGuide(true)} accent="from-amber-500/20 border-amber-500/40" />
           <ActionTile icon={<Pill />} title="Medical Card" sub="医療カード" onClick={() => setOpenMedical(true)} accent="from-pink-500/20 border-pink-500/40" />
-          <a href="tel:110">
-            <ActionTile icon={<Phone />} title="Police 110" sub="警察" accent="from-omamori-red/20 border-omamori-red/50" />
-          </a>
-          <a href="tel:119">
-            <ActionTile icon={<Phone />} title="Ambulance 119" sub="救急" accent="from-omamori-red/20 border-omamori-red/50" />
-          </a>
         </div>
 
         {/* Important phone numbers */}
@@ -65,7 +59,7 @@ export default function EmergencyPage() {
           <div className="text-sm font-semibold mb-2">Important numbers · 重要電話番号</div>
           <ul className="text-sm space-y-1.5">
             <PhoneRow label="Police" jp="警察" num="110" />
-            <PhoneRow label="Fire / Ambulance" jp="消防/救急" num="119" />
+            <PhoneRow label="Fire / Ambulance" jp="消防 / 救急" num="119" />
             <PhoneRow label="Japan Visitor Hotline (24h, EN)" jp="観光案内" num="050-3816-2787" />
             <PhoneRow label="Disaster message dial" jp="災害用伝言" num="171" />
           </ul>
