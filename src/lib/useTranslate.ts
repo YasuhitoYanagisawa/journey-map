@@ -1,10 +1,28 @@
 // Memoized JP→EN translator for short text snippets (names, descriptions, addresses).
 // Caches results in localStorage and a process-wide map to avoid re-billing.
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { runAI } from "./aiRouter";
 
 const LS_KEY = "omamori_tr_cache_v1";
 const memCache = new Map<string, string>();
+const subs = new Set<() => void>();
+let version = 0;
+function notify() {
+  version++;
+  subs.forEach((fn) => fn());
+}
+function subscribe(fn: () => void) {
+  subs.add(fn);
+  return () => {
+    subs.delete(fn);
+  };
+}
+function getVersion() {
+  return version;
+}
+export function useTranslationVersion() {
+  return useSyncExternalStore(subscribe, getVersion, getVersion);
+}
 
 function load(): Record<string, string> {
   try {
