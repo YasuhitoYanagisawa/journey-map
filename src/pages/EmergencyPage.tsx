@@ -324,12 +324,14 @@ function ShelterCard({
         </div>
         <div className="text-right shrink-0">
           <div className="text-base font-bold text-emerald-400">{formatDistance(s._distance)}</div>
-          <button
-            onClick={() => openMaps(s.lat, s.lng)}
+          <a
+            href={mapsUrl(s.lat, s.lng)}
+            target="_blank"
+            rel="noopener noreferrer"
             className="text-[11px] text-primary inline-flex items-center gap-1 hover:underline"
           >
             <Navigation className="h-3 w-3" /> Navigate
-          </button>
+          </a>
         </div>
       </div>
     </Card>
