@@ -14,6 +14,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import BottomNav from "@/components/omamori/BottomNav";
 import EngineBadge from "@/components/omamori/EngineBadge";
+import GemmaLoader from "@/components/omamori/GemmaLoader";
 import LangPicker from "@/components/omamori/LangPicker";
 import { speak } from "@/lib/tts";
 import {
