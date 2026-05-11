@@ -8,6 +8,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { toast } from '@/components/ui/sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
+import { useSignedPhotoUrls } from '@/hooks/useSignedPhotoUrl';
 import { formatDistanceToNow } from 'date-fns';
 import { ja } from 'date-fns/locale';
 
