@@ -21,6 +21,8 @@ import EngineBadge from "@/components/omamori/EngineBadge";
 import { findNearby, formatDistance } from "@/lib/omamoriSearch";
 import { getDataset, loadDataset, type Shelter, type Hospital as Hosp } from "@/lib/omamoriDB";
 import { runAI } from "@/lib/aiRouter";
+import { useTranslator, getCached } from "@/lib/useTranslate";
+import { Languages } from "lucide-react";
 
 type Coords = { lat: number; lng: number };
 
