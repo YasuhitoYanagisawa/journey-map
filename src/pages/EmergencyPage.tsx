@@ -281,8 +281,8 @@ function ShelterDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (b
                 key={`${s.name}-${i}`}
                 s={s}
                 showEN={showEN}
-                trName={translations[s.name] || getCached(s.name)}
-                trAddr={translations[s.addr] || getCached(s.addr)}
+                trName={translations[s.name] || getCached(s.name, lang)}
+                trAddr={translations[s.addr] || getCached(s.addr, lang)}
               />
             ))}
           {coords && data && list.length === 0 && (
