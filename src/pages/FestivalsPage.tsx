@@ -275,13 +275,17 @@ function FestivalList({ items }: { items: Festival[] }) {
 function FestivalCard({ f }: { f: Festival }) {
   const month = getMonthFromDate(f.date);
   const mapsUrl = `https://www.google.com/maps?q=${f.lat},${f.lng}`;
+  const enName = getCached(f.name);
+  const enDesc = f.desc ? getCached(f.desc) : undefined;
+  const enVenue = f.venue ? getCached(f.venue) : undefined;
   return (
     <Card className="p-3 hover:border-omamori-gold/40 transition-colors">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <h3 className="font-jp font-semibold leading-tight">{f.name}</h3>
+          {enName && <div className="text-xs text-sky-300 truncate">{enName}</div>}
           <div className="text-xs text-muted-foreground mt-0.5 truncate">
-            {f.pref} {f.city ? `· ${f.city}` : ""} {f.venue ? `· ${f.venue}` : ""}
+            {f.pref} {f.city ? `· ${f.city}` : ""} {f.venue ? `· ${enVenue || f.venue}` : ""}
           </div>
         </div>
         {month && (
@@ -292,6 +296,9 @@ function FestivalCard({ f }: { f: Festival }) {
       </div>
       {f.desc && (
         <p className="text-xs text-muted-foreground mt-2 line-clamp-2 font-jp">{f.desc}</p>
+      )}
+      {enDesc && (
+        <p className="text-xs text-sky-300/80 mt-1 line-clamp-2">{enDesc}</p>
       )}
       <div className="flex flex-wrap items-center gap-2 mt-2">
         {f.station && (
