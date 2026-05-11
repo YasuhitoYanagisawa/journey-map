@@ -19,7 +19,7 @@ const SYSTEM_PROMPTS: Record<string, string> = {
 };
 
 interface Body {
-  task: "chat" | "recommend" | "medical-card";
+  task: "chat" | "recommend" | "medical-card" | "translate";
   systemPrompt?: string;
   messages?: Array<{ role: "system" | "user" | "assistant"; content: string }>;
   userText?: string;
