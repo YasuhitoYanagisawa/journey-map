@@ -96,6 +96,7 @@ export function useTranslator() {
         }
       });
       save();
+      notify();
       setTranslations((p) => ({ ...p, ...out }));
     } catch (e: any) {
       setError(String(e?.message || e));
