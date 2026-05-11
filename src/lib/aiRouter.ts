@@ -4,7 +4,7 @@ import { isOllamaAvailable, ollamaChat, type OllamaMessage } from "./ollama";
 
 export type AIEngine = "gemma4" | "gemini" | "static";
 
-export type AITask = "chat" | "recommend" | "medical-card";
+export type AITask = "chat" | "recommend" | "medical-card" | "translate";
 
 export type RouterRequest = {
   task: AITask;
