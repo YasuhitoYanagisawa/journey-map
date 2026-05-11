@@ -61,6 +61,12 @@
     --map-marker: 36 100% 50%;
     --map-heatmap-low: 210 60% 50%;
     --map-heatmap-high: 0 80% 55%;
+
+    /* Omamori accents */
+    --omamori-gold: 41 80% 47%;
+    --omamori-gold-foreground: 222 47% 6%;
+    --omamori-red: 6 78% 57%;
+    --omamori-red-foreground: 0 0% 100%;
   }
 }
 
