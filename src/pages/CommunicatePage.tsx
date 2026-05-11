@@ -352,14 +352,31 @@ function ChatPanel() {
             }`}
           >
             {m.role === "assistant" ? (
-              <div className="prose prose-sm dark:prose-invert max-w-none font-jp [&_p]:my-1">
-                <ReactMarkdown>{m.content}</ReactMarkdown>
-              </div>
+              <>
+                <div className="prose prose-sm dark:prose-invert max-w-none font-jp [&_p]:my-1">
+                  <ReactMarkdown>{m.content}</ReactMarkdown>
+                </div>
+                <div className="flex justify-end mt-1">
+                  <button
+                    onClick={() => speakAuto(m.content)}
+                    className="text-[10px] inline-flex items-center gap-1 text-muted-foreground hover:text-foreground"
+                    aria-label="Speak"
+                  >
+                    <Volume2 className="h-3 w-3" /> Speak
+                  </button>
+                </div>
+              </>
             ) : (
               <div className="font-jp">{m.content}</div>
             )}
           </div>
         ))}
+        {busy && (
+          <div className="text-xs text-muted-foreground inline-flex items-center gap-1.5">
+            <Loader2 className="h-3 w-3 animate-spin" /> thinking…
+          </div>
+        )}
+      </div>
         {busy && (
           <div className="text-xs text-muted-foreground inline-flex items-center gap-1.5">
             <Loader2 className="h-3 w-3 animate-spin" /> thinking…
