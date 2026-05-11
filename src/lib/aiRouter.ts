@@ -33,19 +33,45 @@ function setEngine(e: AIEngine) {
   listeners.forEach((l) => l(e));
 }
 
+const GEMINI_TIMEOUT_MS = 25_000;
+
 async function callGemini(req: RouterRequest): Promise<string> {
-  const { data, error } = await supabase.functions.invoke("omamori-ai", {
-    body: {
-      task: req.task,
-      systemPrompt: req.systemPrompt,
-      messages: req.messages,
-      userText: req.userText,
-      payload: req.payload,
-    },
-  });
-  if (error) throw error;
-  if (data?.error) throw new Error(data.error);
-  return (data?.text ?? "") as string;
+  // Use raw fetch so we can apply an AbortController timeout
+  // (supabase.functions.invoke doesn't expose AbortSignal).
+  const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/omamori-ai`;
+  const apikey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+  const { data: sess } = await supabase.auth.getSession();
+  const token = sess?.session?.access_token ?? apikey;
+
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), GEMINI_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey,
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        task: req.task,
+        systemPrompt: req.systemPrompt,
+        messages: req.messages,
+        userText: req.userText,
+        payload: req.payload,
+      }),
+      signal: ctrl.signal,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data?.error || `AI gateway ${res.status}`);
+    if (data?.error) throw new Error(data.error);
+    return (data?.text ?? "") as string;
+  } catch (e: any) {
+    if (e?.name === "AbortError") throw new Error("AI request timed out. Please try again.");
+    throw e;
+  } finally {
+    clearTimeout(t);
+  }
 }
 
 async function callOllama(req: RouterRequest): Promise<string> {
