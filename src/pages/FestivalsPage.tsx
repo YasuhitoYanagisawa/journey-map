@@ -188,12 +188,42 @@ function FestivalsBody({ data }: { data: Festival[] }) {
         </select>
       </div>
 
-      <div className="text-xs text-muted-foreground">
-        {filtered.length.toLocaleString()} FESTIVALS FOUND
+      <div className="flex items-center gap-2">
+        <div className="text-xs text-muted-foreground">
+          {filtered.length.toLocaleString()} FESTIVALS FOUND
+        </div>
+        <TranslateBar items={filtered.slice(0, 50)} />
       </div>
 
       <FestivalList items={filtered} />
     </div>
+  );
+}
+
+function TranslateBar({ items }: { items: Festival[] }) {
+  const { translate, loading } = useTranslator();
+  const [done, setDone] = useState(false);
+  const handle = async () => {
+    const texts: string[] = [];
+    items.forEach((f) => {
+      if (f.name) texts.push(f.name);
+      if (f.desc) texts.push(f.desc);
+      if (f.venue) texts.push(f.venue);
+    });
+    await translate(texts);
+    setDone(true);
+  };
+  return (
+    <Button
+      size="sm"
+      variant="outline"
+      className="ml-auto h-7 text-xs"
+      onClick={handle}
+      disabled={loading || items.length === 0}
+    >
+      {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Languages className="h-3 w-3" />}
+      {done ? "EN added" : "Translate visible"}
+    </Button>
   );
 }
 
