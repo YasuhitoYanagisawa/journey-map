@@ -10,6 +10,9 @@ import Feed from "./pages/Feed";
 import Upload from "./pages/Upload";
 import Gallery from "./pages/Gallery";
 import Events from "./pages/Events";
+import FestivalsPage from "./pages/FestivalsPage";
+import CommunicatePage from "./pages/CommunicatePage";
+import EmergencyPage from "./pages/EmergencyPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -28,6 +31,9 @@ const App = () => (
             <Route path="/upload" element={<Upload />} />
             <Route path="/gallery" element={<Gallery />} />
             <Route path="/events" element={<Events />} />
+            <Route path="/festivals" element={<FestivalsPage />} />
+            <Route path="/communicate" element={<CommunicatePage />} />
+            <Route path="/emergency" element={<EmergencyPage />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
