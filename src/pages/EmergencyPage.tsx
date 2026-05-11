@@ -21,6 +21,8 @@ import EngineBadge from "@/components/omamori/EngineBadge";
 import { findNearby, formatDistance } from "@/lib/omamoriSearch";
 import { getDataset, loadDataset, type Shelter, type Hospital as Hosp } from "@/lib/omamoriDB";
 import { runAI } from "@/lib/aiRouter";
+import { useTranslator, getCached } from "@/lib/useTranslate";
+import { Languages } from "lucide-react";
 
 type Coords = { lat: number; lng: number };
 
@@ -52,12 +54,6 @@ export default function EmergencyPage() {
           <ActionTile icon={<Hospital />} title="Find Hospital" sub="病院" onClick={() => setOpenHospital(true)} accent="from-sky-500/20 border-sky-500/40" />
           <ActionTile icon={<Waves />} title="Earthquake Guide" sub="地震対応" onClick={() => setOpenGuide(true)} accent="from-amber-500/20 border-amber-500/40" />
           <ActionTile icon={<Pill />} title="Medical Card" sub="医療カード" onClick={() => setOpenMedical(true)} accent="from-pink-500/20 border-pink-500/40" />
-          <a href="tel:110">
-            <ActionTile icon={<Phone />} title="Police 110" sub="警察" accent="from-omamori-red/20 border-omamori-red/50" />
-          </a>
-          <a href="tel:119">
-            <ActionTile icon={<Phone />} title="Ambulance 119" sub="救急" accent="from-omamori-red/20 border-omamori-red/50" />
-          </a>
         </div>
 
         {/* Important phone numbers */}
@@ -65,7 +61,7 @@ export default function EmergencyPage() {
           <div className="text-sm font-semibold mb-2">Important numbers · 重要電話番号</div>
           <ul className="text-sm space-y-1.5">
             <PhoneRow label="Police" jp="警察" num="110" />
-            <PhoneRow label="Fire / Ambulance" jp="消防/救急" num="119" />
+            <PhoneRow label="Fire / Ambulance" jp="消防 / 救急" num="119" />
             <PhoneRow label="Japan Visitor Hotline (24h, EN)" jp="観光案内" num="050-3816-2787" />
             <PhoneRow label="Disaster message dial" jp="災害用伝言" num="171" />
           </ul>
@@ -187,10 +183,26 @@ function useDataset<T>(name: "shelters" | "hospitals", enabled: boolean) {
   return { data, loadErr, retry: () => setAttempt((a) => a + 1) };
 }
 
+function openMaps(lat: number, lng: number) {
+  const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+  // Use window.open to escape iframe sandbox in preview
+  const w = window.open(url, "_blank", "noopener,noreferrer");
+  if (!w) {
+    // Popup blocked → try top-level navigation
+    try {
+      (window.top || window).location.href = url;
+    } catch {
+      window.location.href = url;
+    }
+  }
+}
+
 function ShelterDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (b: boolean) => void }) {
   const { coords, error } = useGeo();
   const { data, loadErr, retry } = useDataset<Shelter>("shelters", open);
   const [filter, setFilter] = useState<"all" | "eq" | "ts" | "fl" | "vo">("all");
+  const { translate, translations, loading: trLoading } = useTranslator();
+  const [showEN, setShowEN] = useState(false);
 
   const list = useMemo(() => {
     if (!data || !coords) return [];
@@ -201,6 +213,16 @@ function ShelterDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (b
     return findNearby(items, coords.lat, coords.lng, 50, 30);
   }, [data, coords, filter]);
 
+  const handleTranslate = async () => {
+    setShowEN(true);
+    const texts: string[] = [];
+    list.forEach((s) => {
+      texts.push(s.name);
+      texts.push(s.addr);
+    });
+    await translate(texts);
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg max-h-[85vh] overflow-hidden flex flex-col">
@@ -209,7 +231,7 @@ function ShelterDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (b
             <MapPin className="h-4 w-4 text-emerald-500" /> Nearest Shelters
           </DialogTitle>
         </DialogHeader>
-        <div className="flex gap-1 flex-wrap">
+        <div className="flex gap-1 flex-wrap items-center">
           {[
             { k: "all", l: "All" },
             { k: "eq", l: "🟢 Earthquake" },
@@ -227,6 +249,16 @@ function ShelterDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (b
               {c.l}
             </button>
           ))}
+          <Button
+            size="sm"
+            variant="outline"
+            className="ml-auto h-7 text-xs"
+            onClick={handleTranslate}
+            disabled={trLoading || list.length === 0}
+          >
+            {trLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Languages className="h-3 w-3" />}
+            {showEN ? "EN" : "Translate"}
+          </Button>
         </div>
         <div className="overflow-auto -mx-2 px-2 space-y-2">
           {error && <div className="text-sm text-destructive">{error}</div>}
@@ -250,7 +282,13 @@ function ShelterDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (b
           {coords &&
             data &&
             list.map((s, i) => (
-              <ShelterCard key={`${s.name}-${i}`} s={s} />
+              <ShelterCard
+                key={`${s.name}-${i}`}
+                s={s}
+                showEN={showEN}
+                trName={translations[s.name] || getCached(s.name)}
+                trAddr={translations[s.addr] || getCached(s.addr)}
+              />
             ))}
           {coords && data && list.length === 0 && (
             <div className="text-sm text-muted-foreground py-6 text-center">
@@ -263,34 +301,45 @@ function ShelterDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (b
   );
 }
 
-function ShelterCard({ s }: { s: Shelter & { _distance: number } }) {
-  const url = `https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lng}`;
+function ShelterCard({
+  s,
+  showEN,
+  trName,
+  trAddr,
+}: {
+  s: Shelter & { _distance: number };
+  showEN: boolean;
+  trName?: string;
+  trAddr?: string;
+}) {
   return (
     <Card className="p-3">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="font-jp font-semibold leading-tight truncate">{s.name}</div>
+          {showEN && trName && <div className="text-[11px] text-sky-300 truncate">{trName}</div>}
           <div className="text-[11px] font-jp text-muted-foreground truncate">{s.addr}</div>
+          {showEN && trAddr && <div className="text-[11px] text-muted-foreground truncate">{trAddr}</div>}
           <div className="flex flex-wrap gap-1 mt-1.5">
-            {s.eq === 1 && <Badge className="bg-emerald-500/20 text-emerald-300 border-0 text-[10px]">地震</Badge>}
-            {s.ts === 1 && <Badge className="bg-sky-500/20 text-sky-300 border-0 text-[10px]">津波</Badge>}
-            {s.fl === 1 && <Badge className="bg-amber-500/20 text-amber-300 border-0 text-[10px]">洪水</Badge>}
-            {s.vo === 1 && <Badge className="bg-red-500/20 text-red-300 border-0 text-[10px]">火山</Badge>}
+            {s.eq === 1 && <Badge className="bg-emerald-500/20 text-emerald-300 border-0 text-[10px]">地震 EQ</Badge>}
+            {s.ts === 1 && <Badge className="bg-sky-500/20 text-sky-300 border-0 text-[10px]">津波 Tsunami</Badge>}
+            {s.fl === 1 && <Badge className="bg-amber-500/20 text-amber-300 border-0 text-[10px]">洪水 Flood</Badge>}
+            {s.vo === 1 && <Badge className="bg-red-500/20 text-red-300 border-0 text-[10px]">火山 Volcano</Badge>}
             {s.cap > 0 && (
-              <span className="text-[10px] font-jp text-muted-foreground">収容: {s.cap.toLocaleString()}人</span>
+              <span className="text-[10px] font-jp text-muted-foreground">
+                収容/Cap: {s.cap.toLocaleString()}
+              </span>
             )}
           </div>
         </div>
         <div className="text-right shrink-0">
           <div className="text-base font-bold text-emerald-400">{formatDistance(s._distance)}</div>
-          <a
-            href={url}
-            target="_blank"
-            rel="noopener noreferrer"
+          <button
+            onClick={() => openMaps(s.lat, s.lng)}
             className="text-[11px] text-primary inline-flex items-center gap-1 hover:underline"
           >
             <Navigation className="h-3 w-3" /> Navigate
-          </a>
+          </button>
         </div>
       </div>
     </Card>
@@ -301,12 +350,24 @@ function HospitalDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (
   const { coords, error } = useGeo();
   const { data, loadErr, retry } = useDataset<Hosp>("hospitals", open);
   const [emOnly, setEmOnly] = useState(false);
+  const { translate, translations, loading: trLoading } = useTranslator();
+  const [showEN, setShowEN] = useState(false);
 
   const list = useMemo(() => {
     if (!data || !coords) return [];
     const items = emOnly ? data.filter((h) => h.em === 1) : data;
     return findNearby(items, coords.lat, coords.lng, 50, 30);
   }, [data, coords, emOnly]);
+
+  const handleTranslate = async () => {
+    setShowEN(true);
+    const texts: string[] = [];
+    list.forEach((h) => {
+      texts.push(h.name);
+      texts.push(h.addr);
+    });
+    await translate(texts);
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -316,7 +377,7 @@ function HospitalDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (
             <Hospital className="h-4 w-4 text-sky-500" /> Nearest Hospitals
           </DialogTitle>
         </DialogHeader>
-        <div className="flex gap-1">
+        <div className="flex gap-1 items-center">
           <button
             onClick={() => setEmOnly(false)}
             className={`text-xs px-2.5 py-1 rounded-full border ${!emOnly ? "bg-primary text-primary-foreground" : "bg-secondary"}`}
@@ -329,7 +390,20 @@ function HospitalDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (
           >
             🔴 Emergency only
           </button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="ml-auto h-7 text-xs"
+            onClick={handleTranslate}
+            disabled={trLoading || list.length === 0}
+          >
+            {trLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Languages className="h-3 w-3" />}
+            {showEN ? "EN" : "Translate"}
+          </Button>
         </div>
+        <p className="text-[10px] text-muted-foreground -mt-1">
+          ⚠️ Hospital phone numbers are not in the offline dataset. For ambulance dial 119.
+        </p>
         <div className="overflow-auto -mx-2 px-2 space-y-2">
           {error && <div className="text-sm text-destructive">{error}</div>}
           {loadErr && (
@@ -352,33 +426,46 @@ function HospitalDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (
           {coords &&
             data &&
             list.map((h, i) => {
-              const url = `https://www.google.com/maps/dir/?api=1&destination=${h.lat},${h.lng}`;
+              const trName = translations[h.name] || getCached(h.name);
+              const trAddr = translations[h.addr] || getCached(h.addr);
               return (
                 <Card key={`${h.name}-${i}`} className="p-3">
                   <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <div className="font-jp font-semibold leading-tight truncate">{h.name}</div>
+                      {showEN && trName && (
+                        <div className="text-[11px] text-sky-300 truncate">{trName}</div>
+                      )}
                       <div className="text-[11px] font-jp text-muted-foreground truncate">{h.addr}</div>
+                      {showEN && trAddr && (
+                        <div className="text-[11px] text-muted-foreground truncate">{trAddr}</div>
+                      )}
                       <div className="flex flex-wrap gap-1 mt-1.5">
                         {h.em === 1 && (
                           <Badge className="bg-omamori-red/30 text-omamori-red border-0 text-[10px]">
-                            Emergency OK
+                            Emergency / 救急 OK
                           </Badge>
                         )}
                         {h.beds && (
-                          <span className="text-[10px] font-jp text-muted-foreground">病床: {h.beds}</span>
+                          <span className="text-[10px] font-jp text-muted-foreground">
+                            Beds/病床: {h.beds}
+                          </span>
                         )}
                       </div>
                     </div>
-                    <div className="text-right shrink-0">
+                    <div className="text-right shrink-0 flex flex-col gap-1">
                       <div className="text-base font-bold text-sky-400">{formatDistance(h._distance)}</div>
-                      <a
-                        href={url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-[11px] text-primary inline-flex items-center gap-1 hover:underline"
+                      <button
+                        onClick={() => openMaps(h.lat, h.lng)}
+                        className="text-[11px] text-primary inline-flex items-center gap-1 hover:underline justify-end"
                       >
                         <Navigation className="h-3 w-3" /> Navigate
+                      </button>
+                      <a
+                        href="tel:119"
+                        className="text-[11px] text-omamori-red inline-flex items-center gap-1 hover:underline justify-end"
+                      >
+                        <Phone className="h-3 w-3" /> 119
                       </a>
                     </div>
                   </div>

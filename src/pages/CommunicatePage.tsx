@@ -94,6 +94,25 @@ function speakJapanese(text: string) {
   speechSynthesis.speak(u);
 }
 
+// Speaks mixed JP/EN content by splitting into language-tagged chunks.
+function speakAuto(text: string) {
+  if (!("speechSynthesis" in window)) return;
+  speechSynthesis.cancel();
+  // Split by sentence-ish boundaries; detect Japanese vs Latin
+  const parts = text
+    .replace(/[*_`#>~|]/g, "")
+    .split(/(?<=[。．!?！？\n])\s*/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  for (const p of parts) {
+    const isJP = /[぀-ヿ㐀-鿿]/.test(p);
+    const u = new SpeechSynthesisUtterance(p);
+    u.lang = isJP ? "ja-JP" : "en-US";
+    u.rate = 0.95;
+    speechSynthesis.speak(u);
+  }
+}
+
 function PhraseCard({ p, onShow }: { p: Phrase; onShow: () => void }) {
   return (
     <Card className="p-3">
@@ -333,9 +352,20 @@ function ChatPanel() {
             }`}
           >
             {m.role === "assistant" ? (
-              <div className="prose prose-sm dark:prose-invert max-w-none font-jp [&_p]:my-1">
-                <ReactMarkdown>{m.content}</ReactMarkdown>
-              </div>
+              <>
+                <div className="prose prose-sm dark:prose-invert max-w-none font-jp [&_p]:my-1">
+                  <ReactMarkdown>{m.content}</ReactMarkdown>
+                </div>
+                <div className="flex justify-end mt-1">
+                  <button
+                    onClick={() => speakAuto(m.content)}
+                    className="text-[10px] inline-flex items-center gap-1 text-muted-foreground hover:text-foreground"
+                    aria-label="Speak"
+                  >
+                    <Volume2 className="h-3 w-3" /> Speak
+                  </button>
+                </div>
+              </>
             ) : (
               <div className="font-jp">{m.content}</div>
             )}
