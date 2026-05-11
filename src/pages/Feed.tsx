@@ -329,10 +329,8 @@ const Feed = () => {
     }
   };
 
-  const getPublicUrl = (path: string) => {
-    const { data } = supabase.storage.from('photos').getPublicUrl(path);
-    return data.publicUrl;
-  };
+  const signedUrls = useSignedPhotoUrls(photos.map(p => p.storage_path));
+  const getPhotoUrl = (path: string) => signedUrls[path] || '';
 
   const handleSetLocation = async (photoId: string, lat: number, lng: number) => {
     try {
