@@ -31,19 +31,19 @@ export const usePhotos = () => {
       if (error) throw error;
 
       // Convert DB photos to PhotoLocation format (only those with GPS)
-      const dbPhotos: PhotoLocation[] = (data || [])
-        .filter(p => p.latitude !== null && p.longitude !== null)
-        .map(p => ({
-          id: p.id,
-          filename: p.filename,
-          latitude: p.latitude!,
-          longitude: p.longitude!,
-          timestamp: p.taken_at ? new Date(p.taken_at) : new Date(p.created_at),
-          thumbnailUrl: p.thumbnail_url || '',
-          prefecture: p.prefecture,
-          city: p.city,
-          town: p.town,
-        }));
+      const withGps = (data || []).filter(p => p.latitude !== null && p.longitude !== null);
+      const urlMap = await getSignedPhotoUrls(withGps.map(p => p.storage_path).filter(Boolean));
+      const dbPhotos: PhotoLocation[] = withGps.map(p => ({
+        id: p.id,
+        filename: p.filename,
+        latitude: p.latitude!,
+        longitude: p.longitude!,
+        timestamp: p.taken_at ? new Date(p.taken_at) : new Date(p.created_at),
+        thumbnailUrl: urlMap[p.storage_path] || '',
+        prefecture: p.prefecture,
+        city: p.city,
+        town: p.town,
+      }));
 
       setPhotos(dbPhotos);
     } catch (error) {
