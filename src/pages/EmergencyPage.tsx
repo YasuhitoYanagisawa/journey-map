@@ -447,12 +447,14 @@ function HospitalDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (
                     </div>
                     <div className="text-right shrink-0 flex flex-col gap-1">
                       <div className="text-base font-bold text-sky-400">{formatDistance(h._distance)}</div>
-                      <button
-                        onClick={() => openMaps(h.lat, h.lng)}
+                      <a
+                        href={mapsUrl(h.lat, h.lng)}
+                        target="_blank"
+                        rel="noopener noreferrer"
                         className="text-[11px] text-primary inline-flex items-center gap-1 hover:underline justify-end"
                       >
                         <Navigation className="h-3 w-3" /> Navigate
-                      </button>
+                      </a>
                       <a
                         href="tel:119"
                         className="text-[11px] text-omamori-red inline-flex items-center gap-1 hover:underline justify-end"
