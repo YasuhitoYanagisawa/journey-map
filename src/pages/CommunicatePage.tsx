@@ -15,6 +15,8 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import BottomNav from "@/components/omamori/BottomNav";
 import EngineBadge from "@/components/omamori/EngineBadge";
+import TTSLangPicker from "@/components/omamori/TTSLangPicker";
+import { speak } from "@/lib/tts";
 import { PHRASE_CATEGORIES, type Phrase } from "@/data/phrases";
 import { runAI } from "@/lib/aiRouter";
 import { isOllamaAvailable, ollamaChat } from "@/lib/ollama";
@@ -85,33 +87,10 @@ function Header() {
   );
 }
 
-function speakJapanese(text: string) {
-  if (!("speechSynthesis" in window)) return;
-  const u = new SpeechSynthesisUtterance(text);
-  u.lang = "ja-JP";
-  u.rate = 0.95;
-  speechSynthesis.cancel();
-  speechSynthesis.speak(u);
-}
-
-// Speaks mixed JP/EN content by splitting into language-tagged chunks.
-function speakAuto(text: string) {
-  if (!("speechSynthesis" in window)) return;
-  speechSynthesis.cancel();
-  // Split by sentence-ish boundaries; detect Japanese vs Latin
-  const parts = text
-    .replace(/[*_`#>~|]/g, "")
-    .split(/(?<=[。．!?！？\n])\s*/)
-    .map((s) => s.trim())
-    .filter(Boolean);
-  for (const p of parts) {
-    const isJP = /[぀-ヿ㐀-鿿]/.test(p);
-    const u = new SpeechSynthesisUtterance(p);
-    u.lang = isJP ? "ja-JP" : "en-US";
-    u.rate = 0.95;
-    speechSynthesis.speak(u);
-  }
-}
+// Phrase cards always use the original Japanese voice regardless of user pref.
+const speakJapanese = (text: string) => speak(text, "ja-JP");
+// Chat assistant uses the user-selected TTS language (auto by default).
+const speakAuto = (text: string) => speak(text);
 
 function PhraseCard({ p, onShow }: { p: Phrase; onShow: () => void }) {
   return (
@@ -335,11 +314,14 @@ function ChatPanel() {
 
   return (
     <Card className="p-3">
-      <div className="flex items-center justify-between mb-2">
+      <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
         <div className="text-sm font-semibold">AI Chat</div>
-        <span className="text-[10px] text-muted-foreground">
-          Gemma 4 (local) → Gemini (cloud) → static fallback
-        </span>
+        <div className="flex items-center gap-2">
+          <TTSLangPicker />
+          <span className="text-[10px] text-muted-foreground hidden sm:inline">
+            Gemma 4 → Gemini → static
+          </span>
+        </div>
       </div>
       <div ref={scrollRef} className="h-72 overflow-y-auto space-y-2 rounded-md bg-secondary/30 p-2">
         {messages.map((m, i) => (
