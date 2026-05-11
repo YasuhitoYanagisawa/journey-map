@@ -192,7 +192,8 @@ function ShelterDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (b
   const { coords, error } = useGeo();
   const { data, loadErr, retry } = useDataset<Shelter>("shelters", open);
   const [filter, setFilter] = useState<"all" | "eq" | "ts" | "fl" | "vo">("all");
-  const { translate, translations, loading: trLoading } = useTranslator();
+  const [lang] = useTargetLang();
+  const { translate, translations, loading: trLoading } = useTranslator(lang);
   const [showEN, setShowEN] = useState(false);
 
   const list = useMemo(() => {
