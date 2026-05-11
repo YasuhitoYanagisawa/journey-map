@@ -98,7 +98,7 @@ function Header() {
           <MessageCircle className="h-5 w-5" />
           Communicate <span className="font-jp text-muted-foreground text-sm">通訳</span>
         </h1>
-        <div className="ml-auto"><EngineBadge /></div>
+        <div className="ml-auto flex items-center gap-2"><GemmaLoader compact /><EngineBadge /></div>
       </div>
     </header>
   );
